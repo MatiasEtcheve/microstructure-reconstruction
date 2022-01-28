@@ -32,6 +32,11 @@ Here are the usefulness of every folder / files
 |---|---|
 | in_polyhedron/ | folder module to know if a 3D point is inside a 3D closed shape. |
 | save_images/ | folder containing examples of slice images |
+<<<<<<< HEAD
 | rev.m | .m file containing the `rev` class. This class allows to compute <br>the fabrics of each grain contained in the rev and take slice images. |
 | grain.m | .m file containing the `grain` class. This class allows to compute the <br>fabrics of a single grain. |
+=======
+| rev.m | .m file containing the 'rev' class. This class allows to compute <br>the fabrics of each grain contained in the rev and take slice images. |
+| grain.m | .m file containing the 'grain' class. This class allows to compute the <br>fabrics of a single grain. |
+>>>>>>> 9bc13b83599f6031d5043f909cd90c3d0689f103
 | import_stl.mlx | notebook which has access to both class. |
