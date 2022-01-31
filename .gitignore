@@ -1,2 +1,8 @@
 __pycache__/
 *:Zone.Identifier
+*.png
+.python-version
+.vscode/
+.ipynb_checkpoints/
+
+*MBeautifier*

@@ -1,11 +1,10 @@
 classdef rev
     properties
-        TR % triangulation object of the rev
+        path % path to the stl file. Useful to save the input fabrics and slice_images in the current folder with pretty name
+        TR % triangulation object
         P % points of the triangulation
         CL % connectivity list of the triangulation
         AdjMat % adjency matrix: used to know the grain graphs
-        number_grains % number of grains
-        point_index_grain % vector of length = number of points and the values are the index of the grain
         grains % cell of grain objects
         total_volume % total volume of the rev
         x_min
@@ -17,9 +16,12 @@ classdef rev
     end
     methods
         function obj = rev(filename)
-            obj.TR = stlread(filename);
-            obj.P = obj.TR.Points;
-            obj.CL = obj.TR.ConnectivityList;
+            obj.path = filename;
+
+            TR = stlread(filename);
+            obj.TR = TR;
+            obj.P = TR.Points;
+            obj.CL = TR.ConnectivityList;
 
             obj.x_min = min(obj.P(:, 1));
             obj.y_min = min(obj.P(:, 2));
@@ -31,34 +33,36 @@ classdef rev
             obj.total_volume = prod(max(obj.P)-min(obj.P));
 
             obj.AdjMat = false(size(obj.P, 1));
-            for kk = 1:size(obj.TR, 1)
-                obj.AdjMat(obj.TR(kk, 1), obj.TR(kk, 2)) = true;
-                obj.AdjMat(obj.TR(kk, 2), obj.TR(kk, 3)) = true;
-                obj.AdjMat(obj.TR(kk, 3), obj.TR(kk, 1)) = true;
+            for kk = 1:size(TR, 1)
+                obj.AdjMat(TR(kk, 1), TR(kk, 2)) = true;
+                obj.AdjMat(TR(kk, 2), TR(kk, 3)) = true;
+                obj.AdjMat(TR(kk, 3), TR(kk, 1)) = true;
             end
             obj.AdjMat = obj.AdjMat | obj.AdjMat';
-            [obj.point_index_grain, bin_sizes] = conncomp(graph(obj.AdjMat));
-            [~, obj.number_grains] = size(bin_sizes);
+            [point_index_grain, bin_sizes] = conncomp(graph(obj.AdjMat));
+            [~, number_grains] = size(bin_sizes);
 
             % we create a obj.grains list, whose values are grain object
             % to know which point of the rev belongs to which grain, we us the adjency matrix
-            for grain_index = 1:obj.number_grains
-                grain_point_indexes = find(obj.point_index_grain(:, :) == grain_index).';
-                cl_index = ismember(obj.CL(:, 1), grain_point_indexes);
-                grain_triangulation = triangulation(obj.CL(cl_index, :)-min(obj.CL(cl_index, :), [], 'all')+1, obj.P(grain_point_indexes, :));
-                obj.grains{end+1} = grain(grain_triangulation);
+            grains = cell(number_grains, 1);
+            parfor grain_index = 1:number_grains
+                grain_point_indexes = find(point_index_grain(:, :) == grain_index).';
+                cl_index = ismember(TR.ConnectivityList(:, 1), grain_point_indexes);
+                grain_triangulation = triangulation(TR.ConnectivityList(cl_index, :)-min(TR.ConnectivityList(cl_index, :), [], 'all')+1, TR.Points(grain_point_indexes, :));
+                grains{grain_index} = grain(grain_triangulation);
             end
+            obj.grains = grains;
         end
 
         function fabrics = compute_fabrics(obj)
             % computes the fabrics of each grain and append it to a list
-            fabrics = zeros(obj.number_grains, 12);
-            for index = 1:obj.number_grains
+            fabrics = zeros(length(obj.grains), 12);
+            for index = 1:length(obj.grains)
                 fabrics(index, :) = obj.grains{index}.compute_fabrics();
             end
         end
 
-        function input_fabrics = compute_input_fabrics(obj)
+        function input_fabrics = compute_input_fabrics(obj, save)
             % creates a well-formed input fabrics with mean and std
             fabrics = obj.compute_fabrics();
             average = mean(fabrics(:, 1:end-1));
@@ -76,19 +80,28 @@ classdef rev
             end
             % last value is the global volume fraction
             input_fabrics(end+1) = global_volume_fraction;
+
+            if save
+                [filepath, name, ~] = fileparts(obj.path);
+                fabrics_file = strcat(filepath, "\fabrics_", name, ".txt");
+                writematrix(input_fabrics, fabrics_file, 'Delimiter', ',')  
+            end
         end
 
-        function image = binary_image_from_points(obj, points, save, filename)
+        function image = binary_image_from_points(obj, points, n, save, filename)
             width = size(points);
             width = width(3);
             points_as_vector = reshape(permute(points, [2, 1, 3]), size(points, 2), [])';
             in = -inpolyhedron(struct("faces", obj.CL, "vertices", obj.P), points_as_vector) + 1;
             image = reshape(in, [width, width]);
+
             if save
-                if ~exist("saved_images", 'dir')
-                    mkdir("saved_images")
+                [filepath, name, ~] = fileparts(obj.path);
+                dir_path = strcat(filepath, "/", int2str(n), "_", name, "_Imgs");
+                if ~exist(dir_path, 'dir')
+                    mkdir(dir_path)
                 end
-                imwrite(image, strcat("saved_images/", filename), "WriteMode", "overwrite");
+                imwrite(image, strcat(dir_path, "/", filename));
             end
 
         end
@@ -102,7 +115,7 @@ classdef rev
                 [X, Y, Z] = meshgrid(fixed_x(i), y, z);
                 A = horzcat(X, Y, Z);
                 %     points is a array of size (N, 3). Each line is a point to study
-                image = obj.binary_image_from_points(A, save, strcat("image_slice_x_", int2str(i), "-", int2str(length(fixed_x)), "_", int2str(width), "x", int2str(width), ".png"));
+                image = obj.binary_image_from_points(A, n, save, strcat("image_slice_x_", int2str(i), "-", int2str(length(fixed_x)), "_", int2str(width), "x", int2str(width), ".png"));
                 images((i - 1)*(width + 3)+1:(i - 1)*(width + 3)+width, :) = image;
             end
         end
@@ -116,7 +129,7 @@ classdef rev
                 [Y, X, Z] = meshgrid(fixed_y(i), x, z);
                 A = horzcat(X, Y, Z);
                 %     points is a array of size (N, 3). Each line is a point to study
-                image = obj.binary_image_from_points(A, save, strcat("image_slice_y_", int2str(i), "-", int2str(length(fixed_y)), "_", int2str(width), "x", int2str(width), ".png"));
+                image = obj.binary_image_from_points(A, n, save, strcat("image_slice_y_", int2str(i), "-", int2str(length(fixed_y)), "_", int2str(width), "x", int2str(width), ".png"));
                 images((i - 1)*(width + 3)+1:(i - 1)*(width + 3)+width, :) = image;
             end
         end
@@ -130,7 +143,7 @@ classdef rev
                 [Z, X, Y] = meshgrid(fixed_z(i), x, y);
                 A = horzcat(X, Y, Z);
                 %     points is a array of size (N, 3). Each line is a point to study
-                image = obj.binary_image_from_points(A, save, strcat("image_slice_z_", int2str(i), "-", int2str(length(fixed_z)), "_", int2str(width), "x", int2str(width), ".png"));
+                image = obj.binary_image_from_points(A, n, save, strcat("image_slice_z_", int2str(i), "-", int2str(length(fixed_z)), "_", int2str(width), "x", int2str(width), ".png"));
                 images((i - 1)*(width + 3)+1:(i - 1)*(width + 3)+width, :) = image;
             end
         end
