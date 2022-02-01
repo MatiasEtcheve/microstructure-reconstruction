@@ -16,8 +16,6 @@ classdef rev
     end
     methods
         function obj = rev(filename)
-            obj.path = filename;
-
             TR = stlread(filename);
             obj.TR = TR;
             obj.P = TR.Points;
@@ -38,7 +36,7 @@ classdef rev
                 obj.AdjMat(TR(kk, 2), TR(kk, 3)) = true;
                 obj.AdjMat(TR(kk, 3), TR(kk, 1)) = true;
             end
-            obj.AdjMat = obj.AdjMat | obj.AdjMat';
+%             obj.AdjMat = obj.AdjMat | obj.AdjMat';
             [point_index_grain, bin_sizes] = conncomp(graph(obj.AdjMat));
             [~, number_grains] = size(bin_sizes);
 
@@ -84,7 +82,7 @@ classdef rev
             if save
                 [filepath, name, ~] = fileparts(obj.path);
                 fabrics_file = strcat(filepath, "\fabrics_", name, ".txt");
-                writematrix(input_fabrics, fabrics_file, 'Delimiter', ',')  
+                writematrix(input_fabrics, fabrics_file, 'Delimiter', ',')
             end
         end
 
@@ -108,7 +106,8 @@ classdef rev
 
         function images = take_slice_images_along_x(obj, n, width, eps, save)
             fixed_x = linspace(obj.x_min+eps*(obj.x_max - obj.x_min), obj.x_max-eps*(obj.x_max - obj.x_min), n);
-            images = zeros(n*width+3*(n - 1), width);
+%             images = zeros(n*width+3*(n - 1), width);
+            images = cell(n, 1);
             for i = 1:length(fixed_x)
                 y = linspace(obj.y_min, obj.y_max, width);
                 z = linspace(obj.z_min, obj.z_max, width);
@@ -116,13 +115,16 @@ classdef rev
                 A = horzcat(X, Y, Z);
                 %     points is a array of size (N, 3). Each line is a point to study
                 image = obj.binary_image_from_points(A, n, save, strcat("image_slice_x_", int2str(i), "-", int2str(length(fixed_x)), "_", int2str(width), "x", int2str(width), ".png"));
-                images((i - 1)*(width + 3)+1:(i - 1)*(width + 3)+width, :) = image;
+%                 images((i - 1)*(width + 3)+1:(i - 1)*(width + 3)+width, :) = image;
+                images{i} = image;
+
             end
         end
 
         function images = take_slice_images_along_y(obj, n, width, eps, save)
             fixed_y = linspace(obj.y_min+eps*(obj.y_max - obj.y_min), obj.y_max-eps*(obj.y_max - obj.y_min), n);
-            images = zeros(n*width+3*(n - 1), width);
+%             images = zeros(n*width+3*(n - 1), width);
+            images = cell(n, 1);
             for i = 1:length(fixed_y)
                 x = linspace(obj.x_min, obj.x_max, width);
                 z = linspace(obj.z_min, obj.z_max, width);
@@ -130,13 +132,16 @@ classdef rev
                 A = horzcat(X, Y, Z);
                 %     points is a array of size (N, 3). Each line is a point to study
                 image = obj.binary_image_from_points(A, n, save, strcat("image_slice_y_", int2str(i), "-", int2str(length(fixed_y)), "_", int2str(width), "x", int2str(width), ".png"));
-                images((i - 1)*(width + 3)+1:(i - 1)*(width + 3)+width, :) = image;
+%                 images((i - 1)*(width + 3)+1:(i - 1)*(width + 3)+width, :) = image;
+                images{i} = image;
+
             end
         end
 
         function images = take_slice_images_along_z(obj, n, width, eps, save)
             fixed_z = linspace(obj.z_min+eps*(obj.z_max - obj.z_min), obj.z_max-eps*(obj.z_max - obj.z_min), n);
-            images = zeros(n*width+3*(n - 1), width);
+            images = cell(n, 1);
+%             images = zeros(n*width+3*(n - 1), width);
             for i = 1:length(fixed_z)
                 x = linspace(obj.x_min, obj.x_max, width);
                 y = linspace(obj.y_min, obj.y_max, width);
@@ -144,15 +149,19 @@ classdef rev
                 A = horzcat(X, Y, Z);
                 %     points is a array of size (N, 3). Each line is a point to study
                 image = obj.binary_image_from_points(A, n, save, strcat("image_slice_z_", int2str(i), "-", int2str(length(fixed_z)), "_", int2str(width), "x", int2str(width), ".png"));
-                images((i - 1)*(width + 3)+1:(i - 1)*(width + 3)+width, :) = image;
+%                 images((i - 1)*(width + 3)+1:(i - 1)*(width + 3)+width, :) = image;
+                images{i} = image;
             end
         end
 
         function images = take_slice_images(obj, n, width, eps, save)
-            images = zeros(n*width+3*(n - 1), 3*width+3*2);
-            images(:, 1:width) = obj.take_slice_images_along_x(n, width, eps, save);
-            images(:, (width + 3)+1:(width + 3)+width) = obj.take_slice_images_along_y(n, width, eps, save);
-            images(:, 2*(width + 3)+1:2*(width + 3)+width) = obj.take_slice_images_along_z(n, width, eps, save);
+            images(:, 1) = obj.take_slice_images_along_x(n, width, eps, save);
+            images(:, 2) = obj.take_slice_images_along_y(n, width, eps, save);
+            images(:, 3) = obj.take_slice_images_along_z(n, width, eps, save);
+%             images = zeros(n*width+3*(n - 1), 3*width+3*2);
+%             images(:, 1:width) = obj.take_slice_images_along_x(n, width, eps, save);
+%             images(:, (width + 3)+1:(width + 3)+width) = obj.take_slice_images_along_y(n, width, eps, save);
+%             images(:, 2*(width + 3)+1:2*(width + 3)+width) = obj.take_slice_images_along_z(n, width, eps, save);
         end
     end
 end
