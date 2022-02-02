@@ -4,7 +4,6 @@ classdef rev
         TR % triangulation object
         P % points of the triangulation
         CL % connectivity list of the triangulation
-        AdjMat % adjency matrix: used to know the grain graphs
         grains % cell of grain objects
         total_volume % total volume of the rev
         x_min
@@ -30,14 +29,17 @@ classdef rev
 
             obj.total_volume = prod(max(obj.P)-min(obj.P));
 
-            obj.AdjMat = false(size(obj.P, 1));
+            AdjMat = false(size(obj.P, 1));
             for kk = 1:size(TR, 1)
-                obj.AdjMat(TR(kk, 1), TR(kk, 2)) = true;
-                obj.AdjMat(TR(kk, 2), TR(kk, 3)) = true;
-                obj.AdjMat(TR(kk, 3), TR(kk, 1)) = true;
+                AdjMat(TR(kk, 1), TR(kk, 2)) = true;
+                AdjMat(TR(kk, 2), TR(kk, 3)) = true;
+                AdjMat(TR(kk, 3), TR(kk, 1)) = true;
+
+                AdjMat(TR(kk, 2), TR(kk, 1)) = true;
+                AdjMat(TR(kk, 3), TR(kk, 2)) = true;
+                AdjMat(TR(kk, 1), TR(kk, 3)) = true;
             end
-%             obj.AdjMat = obj.AdjMat | obj.AdjMat';
-            [point_index_grain, bin_sizes] = conncomp(graph(obj.AdjMat));
+            [point_index_grain, bin_sizes] = conncomp(graph(AdjMat));
             [~, number_grains] = size(bin_sizes);
 
             % we create a obj.grains list, whose values are grain object

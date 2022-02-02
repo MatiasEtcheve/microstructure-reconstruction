@@ -1,6 +1,10 @@
 __pycache__/
 *:Zone.Identifier
-*.png
+**1pics/
+**5pics/
+**10pics/
+*.stl
+*.STL
 .python-version
 .vscode/
 .ipynb_checkpoints/

@@ -15,7 +15,39 @@ You may also need to set up a SSH connection to github. Basically, a SSH is a se
 
 * <https://jdblischak.github.io/2014-09-18-chicago/novice/git/05-sshkeys.html>
 
-## to update
+## Tree of directories
+
+The script are currently working with this directories / naming conventions:
+
+```bash
+.
+├── MATLAB
+│   ├── README.md
+│   ├── grain.m
+│   ├── import_stl.mlx
+│   ├── rev.m
+├── REV1_600
+│   ├── REV1_6003D_model
+│   │   ├── Spec-1.STL
+│   │   ├── Spec-2.STL
+│   │   └── ...
+│   ├── REV1_600Slices
+│   │   ├── 1pics
+│   │   │   ├── Spec-1_Imgs
+│   │   │   │   ├── *.png
+│   │   │   │   ├── *.png
+│   │   │   │   └── ...
+│   │   │   ├── Spec-2_Imgs
+│   │   │   │   ├── *.png
+│   │   │   │   ├── *.png
+│   │   │   │   └── ...
+│   │   │   ├── ...
+│   │   ├── 3pics
+│   │   └── ...
+│   └── fabrics.txt
+├── README.md <- YOU ARE CURRENTLY HERE
+└── ...
+```
 
 ## Contents
 
