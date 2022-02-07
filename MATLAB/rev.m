@@ -34,10 +34,6 @@ classdef rev
                 AdjMat(TR(kk, 1), TR(kk, 2)) = true;
                 AdjMat(TR(kk, 2), TR(kk, 3)) = true;
                 AdjMat(TR(kk, 3), TR(kk, 1)) = true;
-
-                AdjMat(TR(kk, 2), TR(kk, 1)) = true;
-                AdjMat(TR(kk, 3), TR(kk, 2)) = true;
-                AdjMat(TR(kk, 1), TR(kk, 3)) = true;
             end
             [point_index_grain, bin_sizes] = conncomp(graph(AdjMat));
             [~, number_grains] = size(bin_sizes);
