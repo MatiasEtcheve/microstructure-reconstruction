@@ -6,6 +6,8 @@ import torch
 from PIL import Image
 from torchvision import transforms
 
+print("yoyo")
+
 
 class SinglePhotoDataset:
     def __init__(
@@ -15,7 +17,7 @@ class SinglePhotoDataset:
         transform: transforms.Compose = transforms.Compose([transforms.ToTensor()]),
     ):
         df.reset_index(drop=True, inplace=True)
-        df.drop(columns=["id"], inplace=True)
+        df = df.drop(columns=["id"], inplace=False)
 
         self.images = df.pop("photo").to_numpy()
         self.labels = df.to_numpy()

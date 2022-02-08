@@ -17,7 +17,7 @@ def wandb_login():
         from kaggle_secrets import UserSecretsClient
 
         repoPath = Path(
-            "/kaggle/input/microstructure-reconstruction/microstructure-reconstruction"
+            "/kaggle/input/microstructure-reconstruction/"
         )
         sys.path.append(str(repoPath))
 
