@@ -1,0 +1,224 @@
+from typing import List, Union
+
+import numpy as np
+import pandas as pd
+import tools
+import torch
+from PIL import Image
+from torchvision import transforms
+
+"""
+This file contains useful dataset to work with. We imagine we work with data as follow:
+
++---+------+-------------------+-----+----------------+---------------+----------------------+---------------------------------------------+
+|   | id   | orientation_0_std | ... | roundness_mean | roundness_std | volume_fraction_mean | photos                                      |
++---+------+-------------------+-----+----------------+---------------+----------------------+---------------------------------------------+
+| 0 | REV1 | 0.324161          | ... | 0.097545       | 0.210755      | 0.086931             | ["REV1/x-y(1).png", ..., "REV1/x-y(N).png", |
+|   |      |                   |     |                |               |                      |  "REV1/x-z(1).png", ...,                    |
+|   |      |                   |     |                |               |                      |                     ..., "REV1/y-z(N).png"] |
++---+------+-------------------+-----+----------------+---------------+----------------------+---------------------------------------------+
+| 1 | REV0 | 0.373141          | ... | 0.030363       | 0.297964      | 0.101607             | ["REV2/x-y(1).png", ..., "REV2/x-y(2).png", |
+|   |      |                   |     |                |               |                      |  "REV2/x-z(1).png", ...,                    |
+|   |      |                   |     |                |               |                      |                     ..., "REV2/y-z(N).png"] |
++---+------+-------------------+-----+----------------+---------------+----------------------+---------------------------------------------+
+
+We aim at building different datasets according to our needs.
+"""
+
+
+class SinglePhotoDataset:
+    """Dataset whose inputs are sliced images from a plane, not matter which. From a dataframe of 600 revs of N images,
+    this dataset can contain 600N inputs:
+
+    +------+-------------------+-----+----------------+---------------+----------------------+-------------------+
+    |      | orientation_0_std | ... | roundness_mean | roundness_std | volume_fraction_mean | photo             |
+    +------+-------------------+-----+----------------+---------------+----------------------+-------------------+
+    | 0    | 0.324161          | ... | 0.097545       | 0.210755      | 0.086931             | "REV1/x-y(1).png" |
+    +------+-------------------+-----+----------------+---------------+----------------------+-------------------+
+    | 1    | 0.324161          | ... | 0.097545       | 0.210755      | 0.086931             | "REV1/x-y(2).png" |
+    +------+-------------------+-----+----------------+---------------+----------------------+-------------------+
+    | ...                                                                                                        |
+    +------+-------------------+-----+----------------+---------------+----------------------+-------------------+
+    | N    | 0.373141          | ... | 0.030363       | 0.297964      | 0.101607             | "REV2/x-y(1).png" |
+    +------+-------------------+-----+----------------+---------------+----------------------+-------------------+
+    | ...                                                                                                        |
+    +------+-------------------+-----+----------------+---------------+----------------------+-------------------+
+    | 600N | 0.373141          | ... | 0.030363       | 0.297964      | 0.101607             | "REV2/x-y(N).png" |
+    +------+-------------------+-----+----------------+---------------+----------------------+-------------------+
+
+    Important:
+        Pros:
+            * This type of dataset is easy to compute. As we work with grayscale images, each input has size (1, W, H)
+        Cons:
+            * Looses the spatial dependance: 2 images from the same rev are not related anymore
+    """
+
+    def __init__(
+        self,
+        df: pd.DataFrame,
+        col_name_photos: str = "photos",
+        normalization: Union[bool, List[float]] = True,
+        transform: transforms.Compose = transforms.Compose([transforms.ToTensor()]),
+    ):
+        """Constructor
+
+        Args:
+            df (pd.DataFrame): original dataframe
+            col_name_photos (str): name of the column containing the photos
+            normalization (Union[bool, List[float]], optional): normalization parameters
+                If a list is provided, the first item is the min and the second item is the max value to use to normalize the data.
+                If a bool is provided, it precises whether to normalize or not.
+                Defaults to True.
+            transform (transforms.Compose, optional): Basic transformation to do on images. Defaults to transforms.Compose([transforms.ToTensor()]).
+        """
+        df.reset_index(drop=True, inplace=True)
+        df = df.drop(columns=["id"], inplace=False)
+        df = tools.convert_into_single_entry_df(df, col_name=col_name_photos)
+
+        self.images = df.pop(col_name_photos).to_numpy()
+        self.labels = df.to_numpy()
+
+        self._normalize(normalization)
+
+        if not any(
+            [isinstance(tr, transforms.ToTensor) for tr in transform.transforms]
+        ):
+            transform.transforms.append(transforms.ToTensor())
+
+        self.transform = transform
+
+    def _normalize(self, normalization):
+        if isinstance(normalization, bool):
+            if normalization:
+                self.max = np.max(self.labels, axis=0)
+                self.min = np.min(self.labels, axis=0)
+
+                self.labels = (self.labels - self.min) / (self.max - self.min)
+
+            else:
+                self.max, self.min = None, None
+
+        if isinstance(normalization, list):
+            assert len(normalization) == 2
+            assert all(
+                [
+                    isinstance(x, float) or isinstance(x, np.ndarray)
+                    for x in normalization
+                ]
+            )
+
+            self.max = normalization[1]
+            self.min = normalization[0]
+
+            self.labels = (self.labels - self.min) / (self.max - self.min)
+
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, idx: int):
+        """Method for dataset[idx]
+
+        Args:
+            idx (int): index of the dataset to fetch
+
+        Returns:
+            tuple: first item is the feature (image) of size `(W, H)`, the second item is the target (fabric descriptors)
+        """
+        img_path = self.images[idx]
+        if isinstance(idx, list):
+            image = [Image.open(path) for path in img_path]
+        else:
+            image = Image.open(img_path).convert("RGB").convert("1")
+            if self.transform:
+                image = self.transform(image)
+
+        label = torch.Tensor(self.labels[idx, :])
+        return image, label
+
+
+class NChannelPhotosDataset(SinglePhotoDataset):
+    """Dataset whose inputs are images of size `(C, W, H)`. On each channel, there is a white and black image corresponding to a sliced image.
+
+    Attributes:
+        nb_photos_per_plane (int): number of sliced images per plane in the input. For instance,
+            if we chose `nb_photos_per_plane=2`, the input will have a size `(nb_photos_per_plane*3, W, H)`:
+                * the first 2 images are sliced images from x plane
+                * the 2 next images are sliced images from y plane
+                * the 2 final images are sliced images from z plane
+    """
+
+    def __init__(
+        self,
+        df: pd.DataFrame,
+        nb_photos_per_plane: int = 1,
+        normalization: Union[bool, List[float]] = True,
+        transform: transforms.Compose = transforms.Compose([transforms.ToTensor()]),
+    ):
+        """Constructor
+
+        Args:
+            df (pd.DataFrame): original dataframe to be used
+            nb_photos_per_plane (int): Number of sliced images to use. Defaults to 1.
+            normalization (Union[bool, List[float]], optional): normalization parameters
+                If a list is provided, the first item is the min and the second item is the max value to use to normalize the data.
+                If a bool is provided, it precises whether to normalize or not.
+                Defaults to True.
+            transform (transforms.Compose, optional): Basic transformation to do on images. Defaults to transforms.Compose([transforms.ToTensor()]).
+        """
+        assert (df["photos"].apply(len) >= 3 * nb_photos_per_plane).all()
+        self.nb_photos_per_plane = nb_photos_per_plane
+
+        x_photos = (
+            df["photos"]
+            .apply(func=tools.get_path_image_along_axis, args=("x"))
+            .to_numpy()
+        )
+        y_photos = (
+            df["photos"]
+            .apply(func=tools.get_path_image_along_axis, args=("y"))
+            .to_numpy()
+        )
+        z_photos = (
+            df["photos"]
+            .apply(func=tools.get_path_image_along_axis, args=("z"))
+            .to_numpy()
+        )
+
+        df.reset_index(drop=True, inplace=True)
+        df = df.drop(columns=["id", "photos"], inplace=False)
+        self.images = np.vstack([x_photos, y_photos, z_photos]).T
+        self.labels = df.to_numpy()
+
+        self._normalize(normalization)
+
+        if not any(
+            [isinstance(tr, transforms.ToTensor) for tr in transform.transforms]
+        ):
+            transform.transforms.append(transforms.ToTensor())
+
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, idx: int):
+        """Method for dataset[idx]
+
+        Args:
+            idx (int): index of the dataset to fetch
+
+        Returns:
+            tuple: first item is the feature (image) of size `(C, W, H)`. Each channel corresponds to an image.
+                The second item is the target (fabric descriptors)
+        """
+        img_paths = self.images[idx, :]
+        images = [
+            Image.open(img_path).convert("RGB").convert("1")
+            for img_paths_along_axis in img_paths
+            for img_path in img_paths_along_axis[: self.nb_photos_per_plane]
+        ]
+        if self.transform:
+            images = torch.cat([self.transform(image) for image in images])
+
+        label = torch.Tensor(self.labels[idx, :])
+        return images, label
