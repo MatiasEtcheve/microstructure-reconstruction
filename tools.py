@@ -291,4 +291,4 @@ def validate(model, device, val_loader, criterion, min, max):
                 errors = error
             else:
                 errors = torch.cat((errors, error), dim=0)
-    return val_loss, example_images, errors.max()
+    return val_loss / len(val_loader), example_images, errors.max()
