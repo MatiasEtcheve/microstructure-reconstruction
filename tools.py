@@ -248,7 +248,7 @@ def train(model, device, train_loader, optimizer, criterion):
         train_loss += loss.item()
         loss.backward()
         optimizer.step()
-    return train_loss
+    return train_loss / len(train_loader)
 
 
 def compute_outputs(model, device, val_loader):
