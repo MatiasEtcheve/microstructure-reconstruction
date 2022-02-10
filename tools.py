@@ -45,7 +45,7 @@ def wandb_login() -> Path:
 
         repo_path = Path("/kaggle/input/microstructure-reconstruction/")
         WANDB_API = UserSecretsClient().get_secret("wandb_api")
-    if IS_COLAB:
+    elif IS_COLAB:
         repo_path = Path("/content/gdrive/MyDrive/microstructure-reconstruction")
         WANDB_API = "3e384d0e21fd4f06a6abc2fdc162b88eadc00994"
     else:
