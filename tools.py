@@ -221,6 +221,29 @@ def add_pickle_object(
         filename.unlink()
 
 
+def add_writeable_object(
+    artifact: Union[wandb.Artifact, wandb.sdk.wandb_run.Run], obj, filename: Path
+):
+    """Add a writeable object to a given artifact, at the given filename
+
+    Args:
+        artifact (Union[wandb.Artifact, wandb.Run]): artifact to append the file
+        obj: object to save and to add to the artifact
+        filename (Path): path to the object in the artifact
+    """
+    filename = Path(filename)
+    if filename.suffix == "":
+        filename = filename.parent / (filename.stem + ".txt")
+    filename.mkdir(parents=True, exist_ok=True)
+    if isinstance(artifact, wandb.sdk.wandb_run.Run):
+        filename = Path(artifact.dir) / filename
+    with open(filename, "w") as file:
+        file.write(obj)
+    if isinstance(artifact, wandb.Artifact):
+        artifact.add_file(filename)
+        filename.unlink()
+
+
 def get_path_image_along_axis(
     l: List[Union[str, Path]], axis: str = "x"
 ) -> List[Union[str, Path]]:
