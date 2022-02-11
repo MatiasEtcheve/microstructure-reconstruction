@@ -1,3 +1,7 @@
 numpy 
-tinydb
 torch
+matplotlib
+pandas
+torchvision
+Pillow
+scikit-learn

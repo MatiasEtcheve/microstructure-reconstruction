@@ -2,9 +2,9 @@ from typing import List, Union
 
 import numpy as np
 import pandas as pd
-import tools
 import torch
 from PIL import Image
+from tools import dataframe_reformat
 from torchvision import transforms
 
 """
@@ -49,6 +49,8 @@ class SinglePhotoDataset:
     Important:
         Pros:
             * This type of dataset is easy to compute. As we work with grayscale images, each input has size (1, W, H)
+            * We have more data. In the original ML model, for m revs and n images per slice on each rev, we had m inputs. We now have 3nm inputs.
+            * Computation is easier and thus faster. We are using 2D convolutions instead of 2.5D or 3D convolutions.
         Cons:
             * Looses the spatial dependance: 2 images from the same rev are not related anymore
     """
@@ -73,7 +75,9 @@ class SinglePhotoDataset:
         """
         df.reset_index(drop=True, inplace=True)
         df = df.drop(columns=["id"], inplace=False)
-        df = tools.convert_into_single_entry_df(df, col_name=col_name_photos)
+        df = dataframe_reformat.convert_into_single_entry_df(
+            df, col_name=col_name_photos
+        )
 
         self.images = df.pop(col_name_photos).to_numpy()
         self.labels = df.to_numpy()
@@ -170,17 +174,17 @@ class NChannelPhotosDataset(SinglePhotoDataset):
 
         x_photos = (
             df["photos"]
-            .apply(func=tools.get_path_image_along_axis, args=("x"))
+            .apply(func=dataframe_reformat.get_path_image_along_axis, args=("x"))
             .to_numpy()
         )
         y_photos = (
             df["photos"]
-            .apply(func=tools.get_path_image_along_axis, args=("y"))
+            .apply(func=dataframe_reformat.get_path_image_along_axis, args=("y"))
             .to_numpy()
         )
         z_photos = (
             df["photos"]
-            .apply(func=tools.get_path_image_along_axis, args=("z"))
+            .apply(func=dataframe_reformat.get_path_image_along_axis, args=("z"))
             .to_numpy()
         )
 
