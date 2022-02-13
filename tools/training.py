@@ -41,17 +41,21 @@ def compute_errors(outputs, targets, device, scaler):
     return (outputs - targets) / targets
 
 
-def validate(model, device, val_loader, criterion, scaler):
+def validate(model, device, val_loader, criterion, scaler=None):
     model.eval()
     val_loss = 0
     example_images = []
+    error = 0
     with torch.no_grad():
         for idx, (data, target) in enumerate(val_loader):
             data, target = data.to(device), target.to(device)
             output = model(data)
             val_loss += criterion(output, target).item()
-            output = scaler.inverse_transform(output)
-            target = scaler.inverse_transform(target)
-            example_images.append(wandb.Image(data[0]))
-            error = ((output - target) / target).max()
+            if scaler is not None:
+                output = scaler.inverse_transform(output.cpu().numpy())
+                target = scaler.inverse_transform(target.cpu().numpy())
+                example_images.append(wandb.Image(data[0]))
+                error = max(error, ((output - target) / target).max())
+            else:
+                error = np.inf
     return val_loss / len(val_loader), example_images, error
