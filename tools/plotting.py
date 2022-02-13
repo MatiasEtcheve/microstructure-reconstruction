@@ -34,11 +34,29 @@ def plot_hist(
     )
     for i in range(nb_features):
         axs[i // nb_hist_per_line, i % nb_hist_per_line].hist(
-            targets[:, i], color="orange", bins=nb_bins, alpha=0.65
+            targets[:, i],
+            color="orange",
+            bins=nb_bins,
+            alpha=0.65,
+            weights=np.ones_like(targets[:, i]) / float(len(targets[:, i])),
         )
+        # axs[i // nb_hist_per_line, i % nb_hist_per_line].hist(
+        #     targets[:, i],
+        #     color="red",
+        #     bins=nb_bins,
+        #     alpha=0.65,
+        #     weights=np.ones_like(targets[:, i]) / float(len(targets[:, i])),
+        #     cumulative=True,
+        #     histtype="step",
+        #     linewidth=2
+        # )
         if predictions is not None:
             axs[i // nb_hist_per_line, i % nb_hist_per_line].hist(
-                predictions[:, i], color="blue", bins=nb_bins, alpha=0.65
+                predictions[:, i],
+                color="blue",
+                bins=nb_bins,
+                alpha=0.65,
+                weights=np.ones_like(predictions[:, i]) / float(len(predictions[:, i])),
             )
         # axs[i // nb_hist_per_line, i % nb_hist_per_line].axvline(
         #     targets[:, i].mean(), color="red", linestyle="dashed", linewidth=3

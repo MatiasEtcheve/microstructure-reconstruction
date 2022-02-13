@@ -52,7 +52,7 @@ classdef rev
 
         function fabrics = compute_fabrics(obj)
             % computes the fabrics of each grain and append it to a list
-            fabrics = zeros(length(obj.grains), 12);
+            fabrics = zeros(length(obj.grains), 14);
             for index = 1:length(obj.grains)
                 fabrics(index, :) = obj.grains{index}.compute_fabrics();
             end
@@ -63,20 +63,18 @@ classdef rev
             fabrics = obj.compute_fabrics();
             average = mean(fabrics(:, 1:end-1));
             deviation = std(fabrics(:, 1:end-1));
-
-            aggregates_volume = sum(fabrics(:, 12));
+            aggregates_volume = sum(fabrics(:, end));
             global_volume_fraction = aggregates_volume / obj.total_volume;
-
-            % six first values are orientation (mean and std)
+            % 2 first values are angles and std
+            % six next values are orientation (mean and std)
             % following 2 values are aspect ratios (mean and std)
-            input_fabrics = [average(1:6), deviation(1:6), average(7:8), deviation(7:8)];
+            input_fabrics = [average(1:2), deviation(1:2), average(3:8), deviation(3:8), average(9:10), deviation(9:10)];
             % following 3 values are size, solidity and roundness (mean and std)
-            for i = 9:11
+            for i = 11:13
                 input_fabrics(end+1:end+2) = [average(i), deviation(i)];
             end
             % last value is the global volume fraction
             input_fabrics(end+1) = global_volume_fraction;
-
             if save
                 [filepath, name, ~] = fileparts(obj.path);
                 fabrics_file = strcat(filepath, "\fabrics_", name, ".txt");

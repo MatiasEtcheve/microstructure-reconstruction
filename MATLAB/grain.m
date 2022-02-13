@@ -42,12 +42,21 @@ classdef grain
             [~, grain_convex_volum] = convhull(obj.P(:, 1), obj.P(:, 2), obj.P(:, 3));
         end
 
+        function grain_angles = compute_grain_angles(obj)
+            major_vector = obj.coeff(:, 1);
+            theta = acos(major_vector(3));
+            phi = acos(major_vector(2)/ sin(theta));
+            grain_angles = horzcat(theta, phi);
+        end
+
+
         function fabrics = compute_fabrics(obj)
             % Computes the fabrics of the grain: orientation, aspect ratio,
             % size, solidity, roundness, grain volume
             grain_volume = obj.compute_grain_volume();
             grain_convex_volum = obj.compute_grain_convex_volume();
-
+            
+            angles = obj.compute_grain_angles();
             orientation = obj.coeff(:, 1) * obj.coeff(:, 1).';
             orientation_vector = [orientation(1, 1), orientation(2, 2), orientation(3, 3), orientation(2, 3), orientation(1, 3), orientation(1, 2)];
             size = obj.compute_grain_size_along_axis(obj.coeff(:, 1));
@@ -56,7 +65,7 @@ classdef grain
             aspect_ratio = [obj.compute_grain_size_along_axis(obj.coeff(:, 2)), obj.compute_grain_size_along_axis(obj.coeff(:, 3))] / size;
             solidity = grain_volume / grain_convex_volum;
 
-            fabrics = horzcat(orientation_vector, aspect_ratio, size, solidity, roundness, grain_volume);
+            fabrics = horzcat(angles, orientation_vector, aspect_ratio, size, solidity, roundness, grain_volume);
 
         end
     end
