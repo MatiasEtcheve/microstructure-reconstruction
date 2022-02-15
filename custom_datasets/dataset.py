@@ -128,7 +128,6 @@ class NChannelPhotosDataset(SinglePhotoDataset):
         self,
         df: pd.DataFrame,
         nb_photos_per_plane: int = 1,
-        normalization: Union[bool, List[float]] = True,
         transform: transforms.Compose = transforms.Compose([transforms.ToTensor()]),
     ):
         """Constructor
@@ -165,8 +164,6 @@ class NChannelPhotosDataset(SinglePhotoDataset):
         df = df.drop(columns=["id", "photos"], inplace=False)
         self.images = np.vstack([x_photos, y_photos, z_photos]).T
         self.labels = df.to_numpy()
-
-        self._normalize(normalization)
 
         if not any(
             [isinstance(tr, transforms.ToTensor) for tr in transform.transforms]
