@@ -1,12 +1,13 @@
 import os
 import pickle
+import re
 import sys
-from ctypes import Union
 from pathlib import Path
-from typing import Union
+from typing import List, Tuple, Union
 
 import pandas as pd
 import torch
+import torch.nn as nn
 import wandb
 
 
@@ -107,3 +108,48 @@ def add_writeable_object(
     if isinstance(artifact, wandb.Artifact):
         artifact.add_file(filename)
         filename.unlink()
+
+
+def upload_files(run_name: str, paths: Union[str, Path, List]):
+    """Uploads file in a run, after finishing it
+
+    Args:
+        run_name (str): run id to update
+        paths (Union[str, Path, List]): paths of the files to update
+    """
+    login()
+    api = wandb.Api()
+    run = api.run(f"matiasetcheverry/microstructure-reconstruction/{run_name}")
+    if isinstance(paths, Path) or isinstance(paths, str):
+        run.upload_file(paths)
+    if isinstance(paths, list):
+        for p in paths:
+            run.upload_file(p)
+    run.finish()
+
+
+def get_training(
+    run_name: str,
+    model_dict_path: Union[Path, str] = "model_dict.pt",
+    model_script_path: Union[Path, str] = "model_script.txt",
+) -> Tuple:
+    """Retrieves a training from a name of a run
+
+    Args:
+        run_name (str): id of the run
+        model_dict_path (Union[Path, str], optional): path to the model weights. Defaults to "model_dict.pt".
+        model_script_path (Union[Path, str], optional): path to the model script. Defaults to "model_script.txt".
+
+    Returns:
+        Tuple: class name and script of the model
+    """
+    login()
+    api = wandb.Api()
+    run = api.run(f"matiasetcheverry/microstructure-reconstruction/{run_name}")
+    model_dict = run.file(model_dict_path)
+    model_dict = model_dict.download(root="tmp/", replace=True)
+    model_script = run.file(model_script_path)
+    model_script = model_script.download(root="tmp/", replace=True)
+    class_name = re.findall(r"(?<=class ).[a-zA-Z0-9_.-]*", model_script.read())[0]
+    model_script.seek(0)
+    return class_name, model_script

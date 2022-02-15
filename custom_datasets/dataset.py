@@ -82,39 +82,12 @@ class SinglePhotoDataset:
         self.images = df.pop(col_name_photos).to_numpy()
         self.labels = df.to_numpy()
 
-        self._normalize(normalization)
-
         if not any(
             [isinstance(tr, transforms.ToTensor) for tr in transform.transforms]
         ):
             transform.transforms.append(transforms.ToTensor())
 
         self.transform = transform
-
-    def _normalize(self, normalization):
-        if isinstance(normalization, bool):
-            if normalization:
-                self.max = np.max(self.labels, axis=0)
-                self.min = np.min(self.labels, axis=0)
-
-                self.labels = (self.labels - self.min) / (self.max - self.min)
-
-            else:
-                self.max, self.min = None, None
-
-        if isinstance(normalization, list):
-            assert len(normalization) == 2
-            assert all(
-                [
-                    isinstance(x, float) or isinstance(x, np.ndarray)
-                    for x in normalization
-                ]
-            )
-
-            self.max = normalization[1]
-            self.min = normalization[0]
-
-            self.labels = (self.labels - self.min) / (self.max - self.min)
 
     def __len__(self):
         return len(self.labels)

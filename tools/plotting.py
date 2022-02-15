@@ -4,6 +4,8 @@ from typing import List, Optional, Union
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
+from black import out
 
 
 def plot_hist(
@@ -15,15 +17,15 @@ def plot_hist(
     if isinstance(targets, pd.DataFrame):
         if columns is None:
             columns = targets.columns
-        targets = targets.to_numpy()
+        targets = targets.copy().to_numpy()
+
     if isinstance(predictions, pd.DataFrame):
         if columns is None:
             columns = predictions.columns
-        predictions = predictions.to_numpy()
+        predictions = predictions.copy().to_numpy()
 
     nb_features = targets.shape[1]
     height = int(math.ceil(nb_features / nb_hist_per_line))
-    nb_bins = 50
     fig, axs = plt.subplots(
         height,
         nb_hist_per_line,
@@ -33,42 +35,52 @@ def plot_hist(
         ),
     )
     for i in range(nb_features):
-        axs[i // nb_hist_per_line, i % nb_hist_per_line].hist(
-            targets[:, i],
-            color="orange",
-            bins=nb_bins,
-            alpha=0.65,
-            weights=np.ones_like(targets[:, i]) / float(len(targets[:, i])),
+        sns.kdeplot(
+            data=targets[:, i],
+            shade=True,
+            ax=axs[i // nb_hist_per_line, i % nb_hist_per_line],
+            label="target",
         )
-        # axs[i // nb_hist_per_line, i % nb_hist_per_line].hist(
-        #     targets[:, i],
-        #     color="red",
-        #     bins=nb_bins,
-        #     alpha=0.65,
-        #     weights=np.ones_like(targets[:, i]) / float(len(targets[:, i])),
-        #     cumulative=True,
-        #     histtype="step",
-        #     linewidth=2
-        # )
         if predictions is not None:
-            axs[i // nb_hist_per_line, i % nb_hist_per_line].hist(
-                predictions[:, i],
-                color="blue",
-                bins=nb_bins,
-                alpha=0.65,
-                weights=np.ones_like(predictions[:, i]) / float(len(predictions[:, i])),
+            sns.kdeplot(
+                data=predictions[:, i],
+                shade=True,
+                ax=axs[i // nb_hist_per_line, i % nb_hist_per_line],
+                label="prediction",
             )
-        # axs[i // nb_hist_per_line, i % nb_hist_per_line].axvline(
-        #     targets[:, i].mean(), color="red", linestyle="dashed", linewidth=3
-        # )
-        # axs[i // nb_hist_per_line, i % nb_hist_per_line].axvline(
-        #     predictions[:, i].mean(), color="purple", linestyle="dashed", linewidth=3
-        # )
+            axs[i // nb_hist_per_line, i % nb_hist_per_line].legend()
         if columns is not None:
             axs[i // nb_hist_per_line, i % nb_hist_per_line].set_title(
                 f"Histogram of {columns[i]}"
             )
     return fig, axs
+
+
+def plot_pairplot(
+    targets: Union[pd.DataFrame, np.ndarray],
+    predictions: Optional[Union[pd.DataFrame, np.ndarray]] = None,
+    columns: Optional[List[str]] = None,
+):
+    if isinstance(targets, np.ndarray):
+        targets_df = pd.DataFrame(targets, columns=columns)
+    else:
+        targets_df = targets.copy()
+    if predictions is not None:
+        if isinstance(predictions, np.ndarray):
+            predictions_df = pd.DataFrame(predictions, columns=columns)
+        else:
+            predictions_df = predictions.copy()
+        predictions_df["type"] = "predictions"
+        targets_df["type"] = "targets"
+        outputs = pd.concat([predictions_df, targets_df], ignore_index=True)
+    else:
+        outputs = targets_df
+    sns_plot = sns.pairplot(
+        data=outputs,
+        diag_kind="kde",
+        hue="type",
+    )
+    return sns_plot
 
 
 def plot_correlation(df):

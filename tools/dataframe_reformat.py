@@ -60,4 +60,7 @@ def get_path_image_along_axis(
     Returns:
         List[Union[str, Path]]: paths of sliced images taken along `axis`
     """
-    return [s for s in l if axis not in Path(s).stem]
+    if isinstance(l, list):
+        return [s for s in l if axis not in Path(s).stem]
+    else:
+        return axis not in Path(l).stem
