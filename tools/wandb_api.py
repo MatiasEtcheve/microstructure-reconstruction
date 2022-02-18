@@ -2,6 +2,7 @@ import os
 import pickle
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Tuple, Union
 
@@ -9,6 +10,11 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import wandb
+
+
+@dataclass
+class Config(object):
+    pass
 
 
 def login():
