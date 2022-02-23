@@ -26,7 +26,7 @@ We aim at building different datasets according to our needs.
 """
 
 
-class SinglePhotoDataset:
+class SinglePhotoDataset(torch.utils.data.Dataset):
     """Dataset whose inputs are sliced images from a plane, not matter which. From a dataframe of 600 revs of N images,
     this dataset can contain 600N inputs:
 
@@ -117,49 +117,57 @@ class NChannelPhotosDataset(SinglePhotoDataset):
     """Dataset whose inputs are images of size `(C, W, H)`. On each channel, there is a white and black image corresponding to a sliced image.
 
     Attributes:
-        nb_photos_per_plane (int): number of sliced images per plane in the input. For instance,
-            if we chose `nb_photos_per_plane=2`, the input will have a size `(nb_photos_per_plane*3, W, H)`:
+        nb_input_photos_per_plane (int): number of sliced images per plane in the input. For instance,
+            if we chose `nb_input_photos_per_plane=2`, the input will have a size `(nb_input_photos_per_plane*3, W, H)`:
                 * the first 2 images are sliced images from x plane
                 * the 2 next images are sliced images from y plane
                 * the 2 final images are sliced images from z plane
     """
 
+    def compute_photos_along_axis(self, df, axis):
+        nb_photos_per_plane = df["photos"].apply(len).unique().min() // 3
+        photos = np.hsplit(
+            df["photos"]
+            .apply(func=dataframe_reformat.get_path_image_along_axis, args=(axis))
+            .explode()
+            .to_numpy()
+            .reshape(-1, nb_photos_per_plane),
+            list(range(0, nb_photos_per_plane, self.nb_input_photos_per_plane)),
+        )[1:]
+        return np.concatenate(
+            [x for x in photos if x.shape[1] == photos[0].shape[1]], axis=0
+        )
+
     def __init__(
         self,
         df: pd.DataFrame,
-        nb_photos_per_plane: int = 1,
+        nb_input_photos_per_plane: int = 1,
         transform: transforms.Compose = transforms.Compose([transforms.ToTensor()]),
     ):
         """Constructor
 
         Args:
             df (pd.DataFrame): original dataframe to be used
-            nb_photos_per_plane (int): Number of sliced images to use. Defaults to 1.
+            nb_input_photos_per_plane (int): Number of sliced images to use. Defaults to 1.
             normalization (Union[bool, List[float]], optional): normalization parameters
                 If a list is provided, the first item is the min and the second item is the max value to use to normalize the data.
                 If a bool is provided, it precises whether to normalize or not.
                 Defaults to True.
             transform (transforms.Compose, optional): Basic transformation to do on images. Defaults to transforms.Compose([transforms.ToTensor()]).
         """
-        assert (df["photos"].apply(len) >= 3 * nb_photos_per_plane).all()
-        self.nb_photos_per_plane = nb_photos_per_plane
-        x_photos = (
-            df["photos"]
-            .apply(func=dataframe_reformat.get_path_image_along_axis, args=("x"))
-            .to_numpy()
+        assert (df["photos"].apply(len) >= 3 * nb_input_photos_per_plane).all()
+        self.nb_input_photos_per_plane = nb_input_photos_per_plane
+        x_photos = self.compute_photos_along_axis(df, "x")
+        y_photos = self.compute_photos_along_axis(df, "y")
+        z_photos = self.compute_photos_along_axis(df, "z")
+        self.images = np.concatenate([x_photos, y_photos, z_photos], axis=1)
+        self.labels = pd.concat(
+            [df] * (len(x_photos) // len(df)),
+            ignore_index=True,
         )
-        y_photos = (
-            df["photos"]
-            .apply(func=dataframe_reformat.get_path_image_along_axis, args=("y"))
-            .to_numpy()
-        )
-        z_photos = df["photos"].apply(
-            func=dataframe_reformat.get_path_image_along_axis, args=("z")
-        )
-        df.reset_index(drop=True, inplace=True)
-        df = df.drop(columns=["id", "photos"], inplace=False)
-        self.images = np.vstack([x_photos, y_photos, z_photos]).T
-        self.labels = df.to_numpy()
+        self.labels.reset_index(drop=True, inplace=True)
+        self.labels = self.labels.drop(columns=["id", "photos"], inplace=False)
+        self.labels = self.labels.to_numpy()
 
         if not any(
             [isinstance(tr, transforms.ToTensor) for tr in transform.transforms]
@@ -183,9 +191,7 @@ class NChannelPhotosDataset(SinglePhotoDataset):
         """
         img_paths = self.images[idx, :]
         images = [
-            Image.open(img_path).convert("RGB").convert("1")
-            for img_paths_along_axis in img_paths
-            for img_path in img_paths_along_axis[: self.nb_photos_per_plane]
+            Image.open(img_path).convert("RGB").convert("1") for img_path in img_paths
         ]
         if self.transform:
             images = torch.cat([self.transform(image) for image in images])
