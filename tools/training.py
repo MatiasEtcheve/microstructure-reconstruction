@@ -1,9 +1,13 @@
+from pathlib import Path
 from typing import List, Tuple
 
 import numpy as np
+import pytorch_lightning as pl
 import torch
 import wandb
 from tqdm import tqdm
+
+from . import inspect_code
 
 
 class SaveOutput:
@@ -17,6 +21,23 @@ class SaveOutput:
 
     def clear(self):
         self.outputs = []
+
+
+class ScriptCheckpoint(pl.callbacks.Callback):
+    def __init__(self, dirpath):
+        super().__init__()
+        self.dirpath = dirpath
+
+    def on_pretrain_routine_start(
+        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"
+    ):
+        super().on_pretrain_routine_start(trainer, pl_module)
+        filename_model = Path(self.dirpath) / "model_script.txt"
+        with open(filename_model, "w") as file:
+            file.write(inspect_code.get_class_code(type(pl_module)))
+        filename_datamodule = Path(self.dirpath) / "datamodule_script.txt"
+        with open(filename_datamodule, "w") as file:
+            file.write(inspect_code.get_class_code(type(trainer.datamodule)))
 
 
 def train(model, device, train_loader, optimizer, criterion) -> List:

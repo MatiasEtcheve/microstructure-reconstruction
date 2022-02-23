@@ -159,3 +159,33 @@ def get_training(
     class_name = re.findall(r"(?<=class ).[a-zA-Z0-9_.-]*", model_script.read())[0]
     model_script.seek(0)
     return class_name, model_script
+
+
+def add_parameter(run, dict):
+    for key, value in dict.items():
+        if key == "group":
+            setattr(run, key, value)
+        else:
+            run.config[key] = value
+
+
+def delete_parameter(run, l):
+    for key in l:
+        run.config.pop(key, None)
+
+
+def modify_run(run_name, action, dict):
+    login()
+    api = wandb.Api()
+    run = api.run(f"matiasetcheverry/microstructure-reconstruction/{run_name}")
+    if action == "add":
+        add_parameter(run, dict)
+    if action == "delete":
+        delete_parameter(run, dict)
+    run.update()
+
+
+def modify_runs(runs):
+    assert all([len(i) == 3 for i in runs])
+    for run in runs:
+        modify_run(*run)

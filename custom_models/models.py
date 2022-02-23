@@ -1,65 +1,144 @@
+import pytorch_lightning as pl
 import torch
 import torch.nn as nn
+import torchmetrics
 import torchvision.models as models
 
 
-class VGG11(nn.Module):
-    def __init__(self, input_channel, input_width, output_size):
-        super(VGG11, self).__init__()
-        self.in_channels = input_channel
-        self.output_size = output_size
+class BaseModel(pl.LightningModule):
+    def __init__(self, config, scaler=None):
+        super().__init__()
+
+        self.config = config
+        self.config["model_type"] = type(self)
+        self.scaler = scaler
+
+        self.configure_model()
+        self.configure_criterion()
+        self.configure_metrics()
+
+    def training_step(self, batch, batch_idx):
+        x, y = batch
+        y_hat = self(x)
+        loss = self.criterion(y_hat, y)
+        self.log(
+            "train_loss",
+            loss,
+            on_step=False,
+            on_epoch=True,
+        )
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        x, y = batch
+        y_hat = self(x)
+        metrics = {name: metric(y, y_hat) for name, metric in self.metrics.items()}
+        self.log_dict(metrics, on_step=False, on_epoch=True)
+        return metrics
+
+    def predict_step(self, batch, batch_idx: int, dataloader_idx: int = None):
+        if isinstance(batch, tuple):
+            return self(batch[0])
+        return self(batch)
+
+    def training_epoch_end(self, outputs):
+        self.config["epochs"] += 1
+
+    def configure_criterion(self):
+        self.criterion = nn.L1Loss()
+        self.config["loss_type"] = type(self.criterion)
+
+    def configure_metrics(self):
+        self.metrics = {
+            "val_loss": self.criterion.to(self.config["device"]),
+            "mae": torchmetrics.MeanAbsoluteError().to(self.config["device"]),
+            "mape": torchmetrics.MeanAbsolutePercentageError().to(
+                self.config["device"]
+            ),
+            "smape": torchmetrics.SymmetricMeanAbsolutePercentageError().to(
+                self.config["device"]
+            ),
+            "r2_score": torchmetrics.R2Score(num_outputs=23).to(self.config["device"]),
+            "cosine_similarity": torchmetrics.CosineSimilarity(reduction="mean").to(
+                self.config["device"]
+            ),
+        }
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(
+            self.parameters(),
+            lr=self.config["learning_rate"],
+            weight_decay=self.config["weight_decay"],
+        )
+        self.config["optimizer_type"] = type(optimizer)
+        return optimizer
+
+
+class VGG11(BaseModel):
+    def __init__(self, config, scaler=None):
+        super().__init__()
+
+        self.config = config
+        self.config["model_type"] = type(self)
+        self.scaler = scaler
+
+        self.configure_model()
+        self.configure_criterion()
+        self.configure_metrics()
+
+    def configure_model(self):
         # convolutional layers
         self.conv_layers = nn.Sequential(
-            nn.Conv2d(self.in_channels, 32, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),
+            nn.Conv2d(1, 64, kernel_size=3, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2, stride=2),
             nn.Conv2d(64, 128, kernel_size=3, padding=1),
             nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
             nn.Conv2d(128, 256, kernel_size=3, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2, stride=2),
             nn.Conv2d(256, 512, kernel_size=3, padding=1),
             nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
             nn.Conv2d(512, 512, kernel_size=3, padding=1),
+            nn.BatchNorm2d(512),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2, stride=2),
-            # nn.Conv2d(512, 512, kernel_size=3, padding=1),
-            # nn.ReLU(),
-            # nn.Conv2d(512, 512, kernel_size=3, padding=1),
-            # nn.ReLU(),
-            # nn.MaxPool2d(kernel_size=2, stride=2)
         )
-
-        input_fc = int((input_width / (2 ** 4)) ** 2 * 512)
+        input_fc = int((self.config["input_width"] / (2 ** 5)) ** 2 * 512)
         # fully connected linear layers
         self.linear_layers = nn.Sequential(
-            nn.Linear(in_features=input_fc, out_features=4096),
+            nn.Linear(in_features=input_fc, out_features=512),
             nn.ReLU(),
             nn.Dropout2d(0.5),
-            nn.Linear(in_features=4096, out_features=4096),
+            nn.Linear(in_features=512, out_features=512),
             nn.ReLU(),
             nn.Dropout2d(0.5),
-            nn.Linear(in_features=4096, out_features=self.output_size),
+            nn.Linear(in_features=512, out_features=23),
         )
 
-    def forward(self, x):
-        x = self.conv_layers(x)
-        x = x.view(x.size(0), -1)
-        x = self.linear_layers(x)
-        return x
 
+class PreTrainedVGG(BaseModel):
+    def __init__(self, config, scaler=None):
+        super().__init__()
 
-class PreTrainedVGG(nn.Module):
-    def __init__(self, input_width, output_size, total_layers=16, fixed_layers=4):
-        super(PreTrainedVGG, self).__init__()
-        assert total_layers >= fixed_layers
+        self.config = config
+        self.config["model_type"] = type(self)
+        self.scaler = scaler
+
+        self.configure_model()
+        self.configure_criterion()
+        self.configure_metrics()
+
+    def configure_model(self):
+        assert self.config["total_layers"] >= self.config["fixed_layers"]
         vgg = models.vgg16(pretrained=True)
-        self.layers = nn.Sequential(*(list(vgg.features.children())[:total_layers]))
+        self.layers = nn.Sequential(
+            *(list(vgg.features.children())[: self.config["total_layers"]])
+        )
         for idx, child in enumerate(self.layers.children()):
-            if idx < fixed_layers:
+            if idx < self.config["fixed_layers"]:
                 for param in child.parameters():
                     param.requires_grad = False
             else:
@@ -67,22 +146,24 @@ class PreTrainedVGG(nn.Module):
                 if callable(reset_parameters):
                     child.reset_parameters()
         nb_channels, width, _ = (
-            self.layers(torch.rand((1, 3, input_width, input_width))).squeeze().shape
+            self.layers(
+                torch.rand(
+                    (1, 3, self.config["input_width"], self.config["input_width"])
+                )
+            )
+            .squeeze()
+            .shape
         )
-        # self.layers.add_module(
-        #     str(total_layers), nn.MaxPool2d(kernel_size=width, stride=1)
-        # )
-        # self.layers.add_module(str(total_layers + 1), nn.Flatten())
         input_fc = int(width ** 2 * nb_channels)
         # fully connected linear layers
         self.linear_layers = nn.Sequential(
-            nn.Linear(in_features=input_fc, out_features=4096),
+            nn.Linear(in_features=input_fc, out_features=512),
             nn.ReLU(),
             nn.Dropout2d(0.5),
-            nn.Linear(in_features=4096, out_features=4096),
+            nn.Linear(in_features=512, out_features=512),
             nn.ReLU(),
             nn.Dropout2d(0.5),
-            nn.Linear(in_features=4096, out_features=output_size),
+            nn.Linear(in_features=512, out_features=23),
         )
 
     def forward(self, x):
