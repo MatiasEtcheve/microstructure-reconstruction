@@ -2,8 +2,10 @@ from pathlib import Path
 from typing import List, Tuple
 
 import numpy as np
+import pandas as pd
 import pytorch_lightning as pl
 import torch
+import torchmetrics as metrics
 import wandb
 from tqdm import tqdm
 
@@ -123,7 +125,25 @@ def compute_predictions(model, device, val_loader) -> Tuple:
     return predictions, targets
 
 
-def compute_errors(predictions, targets, device, scaler=None):
+def _transform_outputs(predictions, targets, device=None, scaler=None):
+    if isinstance(predictions, pd.DataFrame):
+        predictions = predictions.to_numpy()
+    if isinstance(predictions, pd.DataFrame):
+        targets = targets.to_numpy()
+    if scaler is not None:
+        predictions = scaler.inverse_transform(predictions)
+        targets = scaler.inverse_transform(targets)
+    if isinstance(predictions, np.ndarray):
+        predictions = torch.FloatTensor(predictions)
+    if isinstance(targets, np.ndarray):
+        targets = torch.FloatTensor(targets)
+    if device is not None:
+        predictions = predictions.to(device)
+        targets = targets.to(device)
+    return predictions, targets
+
+
+def compute_mape(predictions, targets, device=None, scaler=None):
     """Compute errors of the model from predictions and targets
 
     Args:
@@ -135,7 +155,34 @@ def compute_errors(predictions, targets, device, scaler=None):
     Returns:
         errors
     """
-    if scaler is not None:
-        predictions = scaler.inverse_transform(predictions.to(device))
-        targets = scaler.inverse_transform(targets.to(device))
+    predictions, targets = _transform_outputs(predictions, targets, device, scaler)
     return (predictions - targets) / targets
+
+
+def compute_metric(metric, predictions, targets, by="all", device=None, scaler=None):
+    predictions, targets = _transform_outputs(predictions, targets, device, scaler)
+    if by == "column":
+        return torch.stack(
+            [
+                metric(predictions[:, i], targets[:, i])
+                for i in range(predictions.shape[1])
+            ]
+        )
+    return metric(predictions, targets)
+
+
+def compute_smape(predictions, targets, by="all", device=None, scaler=None):
+    return compute_metric(
+        metrics.SymmetricMeanAbsolutePercentageError(),
+        predictions,
+        targets,
+        by,
+        device,
+        scaler,
+    )
+
+
+def compute_mae(predictions, targets, by="all", device=None, scaler=None):
+    return compute_metric(
+        metrics.MeanAbsoluteError(), predictions, targets, by, device, scaler
+    )

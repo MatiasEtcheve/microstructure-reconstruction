@@ -143,7 +143,6 @@ class NChannelPhotosDataset(SinglePhotoDataset):
         """
         assert (df["photos"].apply(len) >= 3 * nb_photos_per_plane).all()
         self.nb_photos_per_plane = nb_photos_per_plane
-
         x_photos = (
             df["photos"]
             .apply(func=dataframe_reformat.get_path_image_along_axis, args=("x"))
@@ -154,12 +153,9 @@ class NChannelPhotosDataset(SinglePhotoDataset):
             .apply(func=dataframe_reformat.get_path_image_along_axis, args=("y"))
             .to_numpy()
         )
-        z_photos = (
-            df["photos"]
-            .apply(func=dataframe_reformat.get_path_image_along_axis, args=("z"))
-            .to_numpy()
+        z_photos = df["photos"].apply(
+            func=dataframe_reformat.get_path_image_along_axis, args=("z")
         )
-
         df.reset_index(drop=True, inplace=True)
         df = df.drop(columns=["id", "photos"], inplace=False)
         self.images = np.vstack([x_photos, y_photos, z_photos]).T

@@ -12,11 +12,6 @@ import torch.nn as nn
 import wandb
 
 
-@dataclass
-class Config(object):
-    pass
-
-
 def login():
     """Logs a session in wandb.
 
