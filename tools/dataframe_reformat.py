@@ -70,6 +70,7 @@ def get_path_image_along_axis(
 def _compute_photos_along_axis(
     df, axis, col_name="photos", nb_input_photos_per_plane=1
 ):
+    assert df[col_name].apply(len).min() == df[col_name].apply(len).max()
     nb_photos_per_plane = df[col_name].apply(len).unique().min() // 3
     photos = np.hsplit(
         df[col_name]
