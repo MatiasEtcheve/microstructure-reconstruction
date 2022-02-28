@@ -2,6 +2,7 @@ import os
 import pickle
 import re
 import sys
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Tuple, Union
@@ -10,6 +11,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import wandb
+from sklearn.preprocessing import MinMaxScaler
 
 
 def login():
@@ -184,3 +186,46 @@ def modify_runs(runs):
     assert all([len(i) == 3 for i in runs])
     for run in runs:
         modify_run(*run)
+
+
+def fetch_train_test_df(repo_path, alias="latest", normalized=False):
+    training_data_at = wandb.Api().artifact(
+                    "matiasetcheverry/microstructure-reconstruction/train_df:" + alias
+                )
+    test_data_at = wandb.Api().artifact(
+                    "matiasetcheverry/microstructure-reconstruction/test_df:" + alias
+                )
+    training_data_at.download()
+    test_data_at.download()
+    train_df = convert_table_to_dataframe(
+                training_data_at.get("fabrics")
+            )
+    train_df["photos"] = train_df["photos"].apply(
+                func=lambda photo_paths: [
+                    str(repo_path / Path(x)) for x in photo_paths
+                ]
+            )
+    test_df = convert_table_to_dataframe(
+    test_data_at.get("fabrics")
+                )
+    test_df["photos"] = test_df["photos"].apply(
+                    func=lambda photo_paths: [
+                        str(repo_path / Path(x)) for x in photo_paths
+                    ]
+                )
+
+    if normalized:
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        scaler.partial_fit(train_df.iloc[:, 1:-1])
+        scaler.partial_fit(test_df.iloc[:, 1:-1])
+        normalized_train_df = deepcopy(train_df)
+        normalized_train_df.iloc[:, 1:-1] = scaler.transform(
+            train_df.iloc[:, 1:-1]
+        )
+        normalized_test_df = deepcopy(test_df)
+        normalized_test_df.iloc[:, 1:-1] = scaler.transform(
+            test_df.iloc[:, 1:-1]
+        )
+        return scaler, normalized_train_df, normalized_test_df
+    
+    return train_df, test_df
