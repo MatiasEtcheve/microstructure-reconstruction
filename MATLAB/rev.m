@@ -14,8 +14,14 @@ classdef rev
         z_max
     end
     methods
-        function obj = rev(filename)
+        function obj = rev(filename, rotation_matrix)
             TR = stlread(filename);
+               
+            if isa(rotation_matrix, "double")
+                disp("Rotating bro...")
+                TR = triangulation(TR.ConnectivityList, TR.Points * rotation_matrix);
+            end
+            
             obj.TR = TR;
             obj.P = TR.Points;
             obj.CL = TR.ConnectivityList;

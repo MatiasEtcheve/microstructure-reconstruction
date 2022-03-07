@@ -5,11 +5,12 @@
 This script works with the MATLAB version `R2021b`.
 
 The folder `in_polyhedron/` contain a module used in the script. This module allows to know if a 3D point is inside a polyhedron. To install this module, you just need to add this folder in the MATLAB path.
-See https://fr.mathworks.com/matlabcentral/fileexchange/48041-in_polyhedron for more information.
+See <https://fr.mathworks.com/matlabcentral/fileexchange/48041-in_polyhedron> for more information.
 
 You may need to install:
 
 * Statistics and Machine Learning Toolbox
+* Phased Array System Toolbox
 
 The main file is `import_slt.mlx`.
 

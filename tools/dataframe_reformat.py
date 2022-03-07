@@ -3,6 +3,7 @@ from typing import List, Union
 
 import numpy as np
 import pandas as pd
+from pyparsing import col
 
 
 def associate_rev_id_to_its_images(
@@ -86,7 +87,7 @@ def _compute_photos_along_axis(
 
 
 def convert_into_n_entry_df(
-    multi_entry_df, col_name="photos", nb_input_photos_per_plane=1
+    multi_entry_df, col_name="photos", nb_input_photos_per_plane=1, order="xyz"
 ):
     assert (multi_entry_df[col_name].apply(len) >= 3 * nb_input_photos_per_plane).all()
     nb_input_photos_per_plane = nb_input_photos_per_plane
@@ -99,7 +100,17 @@ def convert_into_n_entry_df(
     z_photos = _compute_photos_along_axis(
         multi_entry_df, "z", nb_input_photos_per_plane=nb_input_photos_per_plane
     )
-    images = np.concatenate([x_photos, y_photos, z_photos], axis=1)
+
+    if order == "random":
+        images = np.concatenate([x_photos, y_photos, z_photos], axis=1)
+        images = np.apply_along_axis(np.random.permutation, axis=1, arr=images)
+
+    else:
+        index_order = ["xyz".index(carac) for carac in order]
+        unordered_images = [x_photos, y_photos, z_photos]
+        ordered_images = [unordered_images[i] for i in index_order]
+        images = np.concatenate(ordered_images, axis=1)
+
     df = pd.concat(
         [multi_entry_df] * (len(x_photos) // len(multi_entry_df)),
         ignore_index=True,

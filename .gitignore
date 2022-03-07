@@ -1,8 +1,7 @@
 __pycache__/
 *:Zone.Identifier
-**1pics/
 **5pics/
-**10pics/
+**3pics/
 *.stl
 *.STL
 .python-version

@@ -1,3 +1,5 @@
+from pprint import pprint
+
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
@@ -119,9 +121,9 @@ class VGG11(BaseModel):
         )
 
 
-class PreTrainedVGG(BaseModel):
+class PreTrainedResnet(BaseModel):
     def __init__(self, config, scaler=None):
-        super().__init__()
+        super().__init__(config)
 
         self.config = config
         self.config["model_type"] = type(self)
@@ -133,31 +135,29 @@ class PreTrainedVGG(BaseModel):
 
     def configure_model(self):
         assert self.config["total_layers"] >= self.config["fixed_layers"]
-        vgg = models.vgg16(pretrained=True)
-        self.layers = nn.Sequential(
-            *(list(vgg.features.children())[: self.config["total_layers"]])
-        )
+        resnet = models.resnet18(pretrained=True)
+        self.layers = nn.Sequential(*(list(resnet.children())[:-1]))
+        print(self.layers)
         for idx, child in enumerate(self.layers.children()):
-            if idx < self.config["fixed_layers"]:
-                for param in child.parameters():
-                    param.requires_grad = False
-            else:
-                reset_parameters = getattr(child, "reset_parameters", None)
-                if callable(reset_parameters):
-                    child.reset_parameters()
-        nb_channels, width, _ = (
-            self.layers(
-                torch.rand(
-                    (1, 3, self.config["input_width"], self.config["input_width"])
-                )
-            )
-            .squeeze()
-            .shape
-        )
-        input_fc = int(width ** 2 * nb_channels)
-        # fully connected linear layers
+            print(type(child))
+            if isinstance(child, nn.Sequential):
+                for mini_idx, mini_child in enumerate(child.children()):
+                    print(f"\t{type(mini_child)}")
+                    if isinstance(mini_child, models.resnet.BasicBlock):
+                        for megamini_idx, megamini_child in enumerate(
+                            mini_child.children()
+                        ):
+                            print(f"\t\t{type(megamini_child)}")
+        #     if idx < self.config["fixed_layers"]:
+        #         for param in child.parameters():
+        #             param.requires_grad = False
+        #     else:
+        #         reset_parameters = getattr(child, "reset_parameters", None)
+        #         if callable(reset_parameters):
+        #             child.reset_parameters()
+
         self.linear_layers = nn.Sequential(
-            nn.Linear(in_features=input_fc, out_features=512),
+            nn.Linear(in_features=512, out_features=512),
             nn.ReLU(),
             nn.Dropout2d(0.5),
             nn.Linear(in_features=512, out_features=512),
@@ -168,6 +168,32 @@ class PreTrainedVGG(BaseModel):
 
     def forward(self, x):
         x = self.layers(x)
-        x = x.view(x.size(0), -1)
-        x = self.linear_layers(x)
+        # x = x.view(x.size(0), -1)
+        # x = self.linear_layers(x)
         return x
+
+
+config = {}
+use_cuda = torch.cuda.is_available()
+device = torch.device("cuda" if use_cuda else "cpu")
+config["job_type"] = run.job_type if "run" in locals() else "test"
+config["train_val_split"] = 0.7
+config["seed"] = 42
+config["batch_size"] = 64
+config["learning_rate"] = 0.00001
+config["device"] = device
+config["momentum"] = 0.9
+config["architecture"] = "pretrained VGG"
+config["input_width"] = 64
+config["weight_decay"] = 0.00005
+config["epochs"] = 0
+config["frac_sample"] = 1
+config["frac_noise"] = 0.1
+config["nb_image_per_axis"] = 1
+config["total_layers"] = 1000
+config["fixed_layers"] = 0
+config["log_wandb"] = False
+model = PreTrainedResnet(config)
+total_params = sum(p.numel() for p in model.parameters())
+print(f"[INFO]: {total_params:,} total parameters.")
+print(model(torch.rand((1, 3, config["input_width"], config["input_width"]))).shape)

@@ -13,6 +13,8 @@ def plot_hist(
     predictions: Optional[Union[pd.DataFrame, np.ndarray]] = None,
     nb_hist_per_line: int = 2,
     columns: Optional[List[str]] = None,
+    targets_kwargs={},
+    predictions_kwargs={},
 ):
     if isinstance(targets, pd.DataFrame):
         if columns is None:
@@ -35,19 +37,68 @@ def plot_hist(
         ),
     )
     for i in range(nb_features):
-        sns.kdeplot(
+        sns.histplot(
             data=targets[:, i],
-            shade=True,
             ax=axs[i // nb_hist_per_line, i % nb_hist_per_line],
             label="target",
+            color="blue",
+            kde=False,
+            **targets_kwargs,
         )
         if predictions is not None:
-            sns.kdeplot(
+            sns.histplot(
                 data=predictions[:, i],
-                shade=True,
                 ax=axs[i // nb_hist_per_line, i % nb_hist_per_line],
                 label="prediction",
+                color="orange",
+                kde=False,
+                **predictions_kwargs,
             )
+            axs[i // nb_hist_per_line, i % nb_hist_per_line].legend()
+        if columns is not None:
+            axs[i // nb_hist_per_line, i % nb_hist_per_line].set_title(
+                f"Histogram of {columns[i]}"
+            )
+    return fig, axs
+
+
+def plot_kde(
+    data: List[Union[pd.DataFrame, np.ndarray]],
+    nb_hist_per_line: int = 2,
+    columns: Optional[List[str]] = None,
+    labels=["targets", "predictions"],
+):
+    if isinstance(data, pd.DataFrame):
+        if columns is None:
+            columns = data.columns
+        data = [data.copy().to_numpy()]
+
+    if isinstance(data, list):
+        for index, d in enumerate(data):
+            if isinstance(d, pd.DataFrame):
+                if columns is None:
+                    columns = d.columns
+                data[index] = d.copy().to_numpy()
+
+    nb_features = data[0].shape[1]
+    height = int(math.ceil(nb_features / nb_hist_per_line))
+    fig, axs = plt.subplots(
+        height,
+        nb_hist_per_line,
+        figsize=(
+            6 * nb_hist_per_line,
+            6 * height,
+        ),
+    )
+    for i in range(nb_features):
+        for index, d in enumerate(data):
+            sns.kdeplot(
+                data=d[:, i],
+                shade=True,
+                ax=axs[i // nb_hist_per_line, i % nb_hist_per_line],
+                label=labels[index],
+            )
+
             axs[i // nb_hist_per_line, i % nb_hist_per_line].legend()
         if columns is not None:
             axs[i // nb_hist_per_line, i % nb_hist_per_line].set_title(

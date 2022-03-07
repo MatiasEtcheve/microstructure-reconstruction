@@ -59,8 +59,8 @@ class SinglePhotoDataset(torch.utils.data.Dataset):
         self,
         df: pd.DataFrame,
         col_name_photos: str = "photos",
-        normalization: Union[bool, List[float]] = True,
         transform: transforms.Compose = transforms.Compose([transforms.ToTensor()]),
+        noise: int = 0,
     ):
         """Constructor
 
@@ -88,6 +88,12 @@ class SinglePhotoDataset(torch.utils.data.Dataset):
             transform.transforms.append(transforms.ToTensor())
 
         self.transform = transform
+        self.label_transform = None
+        self.std = np.std(self.labels, axis=0)
+        if noise != 0:
+            self.label_transform = transforms.Lambda(
+                lambda x: x + torch.Tensor(x.shape).uniform_(-1, 1) * self.std * noise
+            )
 
     def __len__(self):
         return len(self.labels)
@@ -109,7 +115,10 @@ class SinglePhotoDataset(torch.utils.data.Dataset):
             if self.transform:
                 image = self.transform(image)
 
-        label = torch.Tensor(self.labels[idx, :])
+        if self.label_transform is not None:
+            label = self.label_transform(torch.Tensor(self.labels[idx, :]))
+        else:
+            label = torch.Tensor(self.labels[idx, :])
         return image, label
 
 
@@ -129,6 +138,8 @@ class NChannelPhotosDataset(SinglePhotoDataset):
         df: pd.DataFrame,
         nb_input_photos_per_plane: int = 1,
         transform: transforms.Compose = transforms.Compose([transforms.ToTensor()]),
+        noise: int = 0,
+        order: str = "xyz",
     ):
         """Constructor
 
@@ -142,7 +153,10 @@ class NChannelPhotosDataset(SinglePhotoDataset):
             transform (transforms.Compose, optional): Basic transformation to do on images. Defaults to transforms.Compose([transforms.ToTensor()]).
         """
         df = dataframe_reformat.convert_into_n_entry_df(
-            df, col_name="photos", nb_input_photos_per_plane=nb_input_photos_per_plane
+            df,
+            col_name="photos",
+            nb_input_photos_per_plane=nb_input_photos_per_plane,
+            order=order,
         )
         df.reset_index(drop=True, inplace=True)
         df = df.drop(columns=["id"], inplace=False)
@@ -154,6 +168,12 @@ class NChannelPhotosDataset(SinglePhotoDataset):
             transform.transforms.append(transforms.ToTensor())
 
         self.transform = transform
+        self.label_transform = None
+        self.std = np.std(self.labels, axis=0)
+        if noise != 0:
+            self.label_transform = transforms.Lambda(
+                lambda x: x + torch.Tensor(x.shape).uniform_(-1, 1) * self.std * noise
+            )
 
     def __len__(self):
         return len(self.labels)
@@ -175,5 +195,9 @@ class NChannelPhotosDataset(SinglePhotoDataset):
         if self.transform:
             images = torch.cat([self.transform(image) for image in images])
 
-        label = torch.Tensor(self.labels[idx, :])
+        if self.label_transform is not None:
+            label = self.label_transform(torch.Tensor(self.labels[idx, :]))
+        else:
+            label = torch.Tensor(self.labels[idx, :])
+
         return images, label
