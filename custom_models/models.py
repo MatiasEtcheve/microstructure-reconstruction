@@ -4,20 +4,20 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torchmetrics
-import torchvision.models as models
+import torchvision.models as pretrained_models
 
 
 class BaseModel(pl.LightningModule):
     def __init__(self, config, scaler=None):
         super().__init__()
 
-        self.config = config
-        self.config["model_type"] = type(self)
-        self.scaler = scaler
+        # self.config = config
+        # self.config["model_type"] = type(self)
+        # self.scaler = scaler
 
-        self.configure_model()
-        self.configure_criterion()
-        self.configure_metrics()
+        # self.configure_model()
+        # self.configure_criterion()
+        # self.configure_metrics()
 
     def training_step(self, batch, batch_idx):
         x, y = batch
@@ -78,7 +78,7 @@ class BaseModel(pl.LightningModule):
 
 class VGG11(BaseModel):
     def __init__(self, config, scaler=None):
-        super().__init__()
+        super().__init__(config)
 
         self.config = config
         self.config["model_type"] = type(self)
@@ -121,7 +121,7 @@ class VGG11(BaseModel):
         )
 
 
-class PreTrainedResnet(BaseModel):
+class PreTrainedVGG(models.BaseModel):
     def __init__(self, config, scaler=None):
         super().__init__(config)
 
@@ -135,28 +135,90 @@ class PreTrainedResnet(BaseModel):
 
     def configure_model(self):
         assert self.config["total_layers"] >= self.config["fixed_layers"]
-        resnet = models.resnet18(pretrained=True)
-        self.layers = nn.Sequential(*(list(resnet.children())[:-1]))
-        print(self.layers)
+        vgg = pretrained_models.vgg16_bn(pretrained=True)
+        self.layers = nn.Sequential(
+            *(list(vgg.features.children())[: self.config["total_layers"]])
+        )
         for idx, child in enumerate(self.layers.children()):
-            print(type(child))
-            if isinstance(child, nn.Sequential):
-                for mini_idx, mini_child in enumerate(child.children()):
-                    print(f"\t{type(mini_child)}")
-                    if isinstance(mini_child, models.resnet.BasicBlock):
-                        for megamini_idx, megamini_child in enumerate(
-                            mini_child.children()
-                        ):
-                            print(f"\t\t{type(megamini_child)}")
-        #     if idx < self.config["fixed_layers"]:
-        #         for param in child.parameters():
-        #             param.requires_grad = False
-        #     else:
-        #         reset_parameters = getattr(child, "reset_parameters", None)
-        #         if callable(reset_parameters):
-        #             child.reset_parameters()
+            if idx < self.config["fixed_layers"] and isinstance(child, nn.Conv2d):
+                for param in child.parameters():
+                    param.requires_grad = False
+        #             else:
+        #                 reset_parameters = getattr(child, "reset_parameters", None)
+        #                 if callable(reset_parameters):
+        #                     child.reset_parameters()
+        nb_channels, width, a = (
+            self.layers(
+                torch.rand(
+                    (1, 3, self.config["input_width"], self.config["input_width"])
+                )
+            )
+            .squeeze()
+            .shape
+        )
+
+        input_fc = int(width ** 2 * nb_channels)
+        # fully connected linear layers
+        self.linear_layers = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(in_features=input_fc, out_features=512),
+            nn.ReLU(),
+            nn.Dropout2d(0.5),
+            nn.Linear(in_features=512, out_features=512),
+            nn.ReLU(),
+            nn.Dropout2d(0.5),
+            nn.Linear(in_features=512, out_features=23),
+        )
+
+    def forward(self, x):
+        x = self.layers(x)
+        x = self.linear_layers(x)
+        return x
+
+    def validation_step(self, batch, batch_idx):
+        x, y = batch
+        y_hat = self(x)
+        metrics = {name: metric(y, y_hat) for name, metric in self.metrics.items()}
+        self.log_dict(metrics, on_step=False, on_epoch=True, prog_bar=True)
+        return metrics
+
+
+class PreTrainedResnet(BaseModel):
+    def __init__(self, config, scaler=None):
+        super().__init__(config)
+
+        self.config = config
+        self.config["model_type"] = type(self)
+        self.scaler = scaler
+
+        self.configure_model()
+        self.configure_criterion()
+        self.configure_metrics()
+
+    def freeze_sequence(self, sequence, current_layer, str):
+        print(str, current_layer[0], type(sequence))
+        if (
+            isinstance(sequence, nn.Sequential)
+            or isinstance(sequence, pretrained_models.resnet.BasicBlock)
+            or isinstance(sequence, pretrained_models.resnet.Bottleneck)
+        ):
+            for idx, child in enumerate(sequence.children()):
+                self.freeze_sequence(child, current_layer, str + "\t")
+        if current_layer[0] < self.config["fixed_layers"] and isinstance(
+            sequence, nn.Conv2d
+        ):
+            for param in sequence.parameters():
+                param.requires_grad = False
+        current_layer[0] += 1
+
+    def configure_model(self):
+        assert self.config["total_layers"] >= self.config["fixed_layers"]
+        resnet = pretrained_models.resnet18(pretrained=True)
+        self.layers = nn.Sequential(*(list(resnet.children())[:-1]))
+        self.freeze_sequence(self.layers, [0], "")
 
         self.linear_layers = nn.Sequential(
+            nn.Flatten(),
             nn.Linear(in_features=512, out_features=512),
             nn.ReLU(),
             nn.Dropout2d(0.5),
@@ -168,6 +230,5 @@ class PreTrainedResnet(BaseModel):
 
     def forward(self, x):
         x = self.layers(x)
-        # x = x.view(x.size(0), -1)
-        # x = self.linear_layers(x)
+        x = self.linear_layers(x)
         return x
