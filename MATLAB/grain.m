@@ -56,7 +56,7 @@ classdef grain
             grain_volume = obj.compute_grain_volume();
             grain_convex_volum = obj.compute_grain_convex_volume();
             
-            angles = obj.compute_grain_angles();
+            % angles = obj.compute_grain_angles();
             orientation = obj.coeff(:, 1) * obj.coeff(:, 1).';
             orientation_vector = [orientation(1, 1), orientation(2, 2), orientation(3, 3), orientation(2, 3), orientation(1, 3), orientation(1, 2)];
             size = obj.compute_grain_size_along_axis(obj.coeff(:, 1));
@@ -65,7 +65,8 @@ classdef grain
             aspect_ratio = [obj.compute_grain_size_along_axis(obj.coeff(:, 2)), obj.compute_grain_size_along_axis(obj.coeff(:, 3))] / size;
             solidity = grain_volume / grain_convex_volum;
 
-            fabrics = horzcat(angles, orientation_vector, aspect_ratio, size, solidity, roundness, grain_volume);
+            % fabrics = horzcat(angles, orientation_vector, aspect_ratio, size, solidity, roundness, grain_volume);
+            fabrics = horzcat(orientation_vector, aspect_ratio, size, solidity, roundness, grain_volume);
 
         end
     end

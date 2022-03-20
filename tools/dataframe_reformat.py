@@ -90,7 +90,6 @@ def convert_into_n_entry_df(
     multi_entry_df, col_name="photos", nb_input_photos_per_plane=1, order="xyz"
 ):
     assert (multi_entry_df[col_name].apply(len) >= 3 * nb_input_photos_per_plane).all()
-    nb_input_photos_per_plane = nb_input_photos_per_plane
     x_photos = _compute_photos_along_axis(
         multi_entry_df, "x", nb_input_photos_per_plane=nb_input_photos_per_plane
     )

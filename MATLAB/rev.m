@@ -15,10 +15,10 @@ classdef rev
     end
     methods
         function obj = rev(filename, rotation_matrix)
+            obj.path = filename;
             TR = stlread(filename);
                
             if isa(rotation_matrix, "double")
-                disp("Rotating bro...")
                 TR = triangulation(TR.ConnectivityList, TR.Points * rotation_matrix);
             end
             
@@ -58,7 +58,7 @@ classdef rev
 
         function fabrics = compute_fabrics(obj)
             % computes the fabrics of each grain and append it to a list
-            fabrics = zeros(length(obj.grains), 14);
+            fabrics = zeros(length(obj.grains), 12);
             for index = 1:length(obj.grains)
                 fabrics(index, :) = obj.grains{index}.compute_fabrics();
             end
@@ -74,9 +74,11 @@ classdef rev
             % 2 first values are angles and std
             % six next values are orientation (mean and std)
             % following 2 values are aspect ratios (mean and std)
-            input_fabrics = [average(1:2), deviation(1:2), average(3:8), deviation(3:8), average(9:10), deviation(9:10)];
+            % input_fabrics = [average(1:2), deviation(1:2), average(3:8), deviation(3:8), average(9:10), deviation(9:10)];
+            input_fabrics = [average(1:6), deviation(1:6), average(7:8), deviation(7:8)];
+
             % following 3 values are size, solidity and roundness (mean and std)
-            for i = 11:13
+            for i = 9:11
                 input_fabrics(end+1:end+2) = [average(i), deviation(i)];
             end
             % last value is the global volume fraction

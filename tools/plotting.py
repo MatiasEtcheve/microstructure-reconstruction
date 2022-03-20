@@ -8,25 +8,31 @@ import seaborn as sns
 from black import out
 
 
+def get_cmap(n, name="hsv"):
+    """Returns a function that maps each index in 0, 1, ..., n-1 to a distinct
+    RGB color; the keyword argument name must be a standard mpl colormap name."""
+    return plt.cm.get_cmap(name, n)
+
+
 def plot_hist(
-    targets: Union[pd.DataFrame, np.ndarray],
-    predictions: Optional[Union[pd.DataFrame, np.ndarray]] = None,
+    data: List[Union[pd.DataFrame, np.ndarray]],
     nb_hist_per_line: int = 2,
     columns: Optional[List[str]] = None,
-    targets_kwargs={},
-    predictions_kwargs={},
+    labels=["targets", "predictions"],
 ):
-    if isinstance(targets, pd.DataFrame):
+    if isinstance(data, pd.DataFrame):
         if columns is None:
-            columns = targets.columns
-        targets = targets.copy().to_numpy()
+            columns = data.columns
+        data = [data.copy().to_numpy()]
 
-    if isinstance(predictions, pd.DataFrame):
-        if columns is None:
-            columns = predictions.columns
-        predictions = predictions.copy().to_numpy()
+    if isinstance(data, list):
+        for index, d in enumerate(data):
+            if isinstance(d, pd.DataFrame):
+                if columns is None:
+                    columns = d.columns
+                data[index] = d.copy().to_numpy()
 
-    nb_features = targets.shape[1]
+    nb_features = data[0].shape[1]
     height = int(math.ceil(nb_features / nb_hist_per_line))
     fig, axs = plt.subplots(
         height,
@@ -36,30 +42,50 @@ def plot_hist(
             6 * height,
         ),
     )
+    if len(data) < 10:
+        colors = ["orange", "blue", "magenta", "green", "cyan", "pink"]
+    else:
+        colors = np.random.rand(len(data), 3)
     for i in range(nb_features):
-        sns.histplot(
-            data=targets[:, i],
-            ax=axs[i // nb_hist_per_line, i % nb_hist_per_line],
-            label="target",
-            color="blue",
-            kde=False,
-            **targets_kwargs,
-        )
-        if predictions is not None:
+        for index, d in enumerate(data):
             sns.histplot(
-                data=predictions[:, i],
+                data=d[:, i],
                 ax=axs[i // nb_hist_per_line, i % nb_hist_per_line],
-                label="prediction",
-                color="orange",
-                kde=False,
-                **predictions_kwargs,
+                label=labels[index],
+                color=colors[index],
             )
+
             axs[i // nb_hist_per_line, i % nb_hist_per_line].legend()
         if columns is not None:
             axs[i // nb_hist_per_line, i % nb_hist_per_line].set_title(
                 f"Histogram of {columns[i]}"
             )
     return fig, axs
+
+    # for i in range(nb_features):
+    #     sns.histplot(
+    #         data=targets[:, i],
+    #         ax=axs[i // nb_hist_per_line, i % nb_hist_per_line],
+    #         label="target",
+    #         color="blue",
+    #         kde=False,
+    #         **targets_kwargs,
+    #     )
+    #     if predictions is not None:
+    #         sns.histplot(
+    #             data=predictions[:, i],
+    #             ax=axs[i // nb_hist_per_line, i % nb_hist_per_line],
+    #             label="prediction",
+    #             color="orange",
+    #             kde=False,
+    #             **predictions_kwargs,
+    #         )
+    #         axs[i // nb_hist_per_line, i % nb_hist_per_line].legend()
+    #     if columns is not None:
+    #         axs[i // nb_hist_per_line, i % nb_hist_per_line].set_title(
+    #             f"Histogram of {columns[i]}"
+    #         )
+    # return fig, axs
 
 
 def plot_kde(

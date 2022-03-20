@@ -121,7 +121,7 @@ class VGG11(BaseModel):
         )
 
 
-class PreTrainedVGG(models.BaseModel):
+class VGG16_bn(BaseModel):
     def __init__(self, config, scaler=None):
         super().__init__(config)
 
@@ -160,6 +160,9 @@ class PreTrainedVGG(models.BaseModel):
         input_fc = int(width ** 2 * nb_channels)
         # fully connected linear layers
         self.linear_layers = nn.Sequential(
+            #             nn.BatchNorm2d(nb_channels),
+            #             nn.ReLU(),
+            #             nn.MaxPool2d(kernel_size=2, stride=2),
             nn.Flatten(),
             nn.Linear(in_features=input_fc, out_features=512),
             nn.ReLU(),
