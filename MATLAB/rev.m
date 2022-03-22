@@ -32,33 +32,33 @@ classdef rev
             obj.x_max = max(obj.P(:, 1));
             obj.y_max = max(obj.P(:, 2));
             obj.z_max = max(obj.P(:, 3));
-
-            obj.total_volume = prod(max(obj.P)-min(obj.P));
-
-            AdjMat = false(size(obj.P, 1));
-            for kk = 1:size(TR, 1)
-                AdjMat(TR(kk, 1), TR(kk, 2)) = true;
-                AdjMat(TR(kk, 2), TR(kk, 3)) = true;
-                AdjMat(TR(kk, 3), TR(kk, 1)) = true;
-            end
-            [point_index_grain, bin_sizes] = conncomp(graph(AdjMat));
-            [~, number_grains] = size(bin_sizes);
-
-            % we create a obj.grains list, whose values are grain object
-            % to know which point of the rev belongs to which grain, we us the adjency matrix
-            grains = cell(number_grains, 1);
-            parfor grain_index = 1:number_grains
-                grain_point_indexes = find(point_index_grain(:, :) == grain_index).';
-                cl_index = ismember(TR.ConnectivityList(:, 1), grain_point_indexes);
-                grain_triangulation = triangulation(TR.ConnectivityList(cl_index, :)-min(TR.ConnectivityList(cl_index, :), [], 'all')+1, TR.Points(grain_point_indexes, :));
-                grains{grain_index} = grain(grain_triangulation);
-            end
-            obj.grains = grains;
+% 
+%             obj.total_volume = prod(max(obj.P)-min(obj.P));
+% 
+%             AdjMat = false(size(obj.P, 1));
+%             for kk = 1:size(TR, 1)
+%                 AdjMat(TR(kk, 1), TR(kk, 2)) = true;
+%                 AdjMat(TR(kk, 2), TR(kk, 3)) = true;
+%                 AdjMat(TR(kk, 3), TR(kk, 1)) = true;
+%             end
+%             [point_index_grain, bin_sizes] = conncomp(graph(AdjMat));
+%             [~, number_grains] = size(bin_sizes);
+% 
+%             % we create a obj.grains list, whose values are grain object
+%             % to know which point of the rev belongs to which grain, we us the adjency matrix
+%             grains = cell(number_grains, 1);
+%             parfor grain_index = 1:number_grains
+%                 grain_point_indexes = find(point_index_grain(:, :) == grain_index).';
+%                 cl_index = ismember(TR.ConnectivityList(:, 1), grain_point_indexes);
+%                 grain_triangulation = triangulation(TR.ConnectivityList(cl_index, :)-min(TR.ConnectivityList(cl_index, :), [], 'all')+1, TR.Points(grain_point_indexes, :));
+%                 grains{grain_index} = grain(grain_triangulation);
+%             end
+%             obj.grains = grains;
         end
 
         function fabrics = compute_fabrics(obj)
             % computes the fabrics of each grain and append it to a list
-            fabrics = zeros(length(obj.grains), 12);
+            fabrics = zeros(length(obj.grains), 9);
             for index = 1:length(obj.grains)
                 fabrics(index, :) = obj.grains{index}.compute_fabrics();
             end
@@ -90,7 +90,7 @@ classdef rev
             end
         end
 
-        function image = binary_image_from_points(obj, points, n, save, filename)
+        function image = binary_image_from_points(obj, points, save, dir_path, filename)
             width = size(points);
             width = width(3);
             points_as_vector = reshape(permute(points, [2, 1, 3]), size(points, 2), [])';
@@ -99,7 +99,8 @@ classdef rev
 
             if save
                 [filepath, name, ~] = fileparts(obj.path);
-                dir_path = strcat(filepath, "/", int2str(n), "_", name, "_Imgs");
+                dir_path = append(dir_path, strcat(name, "_Imgs")); 
+%                 dir_path = strcat(filepath, "/", int2str(n), "_", name, "_Imgs");
                 if ~exist(dir_path, 'dir')
                     mkdir(dir_path)
                 end
@@ -108,7 +109,7 @@ classdef rev
 
         end
 
-        function images = take_slice_images_along_x(obj, n, width, eps, save)
+        function images = take_slice_images_along_x(obj, n, width, eps, save, dir_path)
             fixed_x = linspace(obj.x_min+eps*(obj.x_max - obj.x_min), obj.x_max-eps*(obj.x_max - obj.x_min), n);
 %             images = zeros(n*width+3*(n - 1), width);
             images = cell(n, 1);
@@ -118,14 +119,14 @@ classdef rev
                 [X, Y, Z] = meshgrid(fixed_x(i), y, z);
                 A = horzcat(X, Y, Z);
                 %     points is a array of size (N, 3). Each line is a point to study
-                image = obj.binary_image_from_points(A, n, save, strcat("image_slice_x_", int2str(i), "-", int2str(length(fixed_x)), "_", int2str(width), "x", int2str(width), ".png"));
+                image = obj.binary_image_from_points(A, save, dir_path, strcat("image_slice_x_", int2str(i), "-", int2str(length(fixed_x)), ".png"));
 %                 images((i - 1)*(width + 3)+1:(i - 1)*(width + 3)+width, :) = image;
                 images{i} = image;
 
             end
         end
 
-        function images = take_slice_images_along_y(obj, n, width, eps, save)
+        function images = take_slice_images_along_y(obj, n, width, eps, save, dir_path)
             fixed_y = linspace(obj.y_min+eps*(obj.y_max - obj.y_min), obj.y_max-eps*(obj.y_max - obj.y_min), n);
 %             images = zeros(n*width+3*(n - 1), width);
             images = cell(n, 1);
@@ -135,14 +136,14 @@ classdef rev
                 [Y, X, Z] = meshgrid(fixed_y(i), x, z);
                 A = horzcat(X, Y, Z);
                 %     points is a array of size (N, 3). Each line is a point to study
-                image = obj.binary_image_from_points(A, n, save, strcat("image_slice_y_", int2str(i), "-", int2str(length(fixed_y)), "_", int2str(width), "x", int2str(width), ".png"));
+                image = obj.binary_image_from_points(A, save, dir_path, strcat("image_slice_y_", int2str(i), "-", int2str(length(fixed_y)), ".png"));
 %                 images((i - 1)*(width + 3)+1:(i - 1)*(width + 3)+width, :) = image;
                 images{i} = image;
 
             end
         end
 
-        function images = take_slice_images_along_z(obj, n, width, eps, save)
+        function images = take_slice_images_along_z(obj, n, width, eps, save, dir_path)
             fixed_z = linspace(obj.z_min+eps*(obj.z_max - obj.z_min), obj.z_max-eps*(obj.z_max - obj.z_min), n);
             images = cell(n, 1);
 %             images = zeros(n*width+3*(n - 1), width);
@@ -152,16 +153,16 @@ classdef rev
                 [Z, X, Y] = meshgrid(fixed_z(i), x, y);
                 A = horzcat(X, Y, Z);
                 %     points is a array of size (N, 3). Each line is a point to study
-                image = obj.binary_image_from_points(A, n, save, strcat("image_slice_z_", int2str(i), "-", int2str(length(fixed_z)), "_", int2str(width), "x", int2str(width), ".png"));
+                image = obj.binary_image_from_points(A, save, dir_path, strcat("image_slice_z_", int2str(i), "-", int2str(length(fixed_z)), ".png"));
 %                 images((i - 1)*(width + 3)+1:(i - 1)*(width + 3)+width, :) = image;
                 images{i} = image;
             end
         end
 
-        function images = take_slice_images(obj, n, width, eps, save)
-            images(:, 1) = obj.take_slice_images_along_x(n, width, eps, save);
-            images(:, 2) = obj.take_slice_images_along_y(n, width, eps, save);
-            images(:, 3) = obj.take_slice_images_along_z(n, width, eps, save);
+        function images = take_slice_images(obj, n, width, eps, save, dir_path)
+            images(:, 1) = obj.take_slice_images_along_x(n, width, eps, save, dir_path);
+            images(:, 2) = obj.take_slice_images_along_y(n, width, eps, save, dir_path);
+            images(:, 3) = obj.take_slice_images_along_z(n, width, eps, save, dir_path);
 %             images = zeros(n*width+3*(n - 1), 3*width+3*2);
 %             images(:, 1:width) = obj.take_slice_images_along_x(n, width, eps, save);
 %             images(:, (width + 3)+1:(width + 3)+width) = obj.take_slice_images_along_y(n, width, eps, save);
