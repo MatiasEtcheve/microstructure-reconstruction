@@ -117,3 +117,74 @@ def convert_into_n_entry_df(
     )
     df[col_name] = images.tolist()
     return df
+
+
+def convert_into_n_width_df(
+    multi_entry_df: pd.DataFrame,
+    col_name: str = "photos",
+    nb_input_photos_per_plane: int = 4,
+    order: str = "xyz",
+):
+    """Convert a dataframe into a n witdh dataframe.
+    Supposing `multi_entry_df[col_name]` looks like this:
+
+    +---+-----------------------------------------+
+    |   | col_name                                |
+    +---+-----------------------------------------+
+    | 1 | ["REV1/x-y(1).png", "REV1/x-y(2).png",  |
+    |   |  "REV1/y-z(1).png", "REV1/y-z(2).png",  |
+    |   |  "REV1/z-x(1).png", "REV1/z-x(2).png",] |
+    +---+-----------------------------------------+
+    | 2 | ...                                     |
+    +---+-----------------------------------------+
+
+    We transform it into:
+
+    +---+-------------------------------------------+
+    |   | col_name                                  |
+    +---+-------------------------------------------+
+    | 1 | [["REV1/x-y(1).png", "REV1/x-y(2).png"],  |
+    |   |  ["REV1/y-z(1).png", "REV1/y-z(2).png"],  |
+    |   |  ["REV1/z-x(1).png", "REV1/z-x(2).png"]]  |
+    +---+-------------------------------------------+
+    | 2 | ...                                       |
+    +---+-------------------------------------------+
+
+    where images along x, y and Z all belongs to the same list. There are `nb_input_photos_per_plane` images on x/y/z axis per rev.
+    If there are enough photos, we can create more rev.
+
+    Args:
+        multi_entry_df (pd.DataFrame): dataframe to modify
+        col_name (str, optional): column name where the photos are located. Defaults to "photos".
+        nb_input_photos_per_plane (int, optional): number of input photos per plane. Defaults to 4.
+        order (str, optional): order of the photos. Defaults to "xyz".
+
+    Raises:
+        NotImplementedError: if the order is "random"
+    Returns:
+        pd.DataFrame: multi_entry_df where `multi_entry_df[col_name]` has been updated
+    """
+    assert (multi_entry_df[col_name].apply(len) >= 3 * nb_input_photos_per_plane).all()
+    x_photos = _compute_photos_along_axis(
+        multi_entry_df, "x", nb_input_photos_per_plane=nb_input_photos_per_plane
+    )
+    y_photos = _compute_photos_along_axis(
+        multi_entry_df, "y", nb_input_photos_per_plane=nb_input_photos_per_plane
+    )
+    z_photos = _compute_photos_along_axis(
+        multi_entry_df, "z", nb_input_photos_per_plane=nb_input_photos_per_plane
+    )
+
+    if order == "random":
+        raise NotImplementedError("bruh")
+    else:
+        index_order = ["xyz".index(carac) for carac in order]
+        unordered_images = [x_photos, y_photos, z_photos]
+        images = np.stack([unordered_images[i] for i in index_order], axis=1)
+
+    df = pd.concat(
+        [multi_entry_df] * (len(x_photos) // len(multi_entry_df)),
+        ignore_index=True,
+    )
+    df[col_name] = images.tolist()
+    return df

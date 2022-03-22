@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import Callable, List, Union
 
 import numpy as np
 import pandas as pd
@@ -140,24 +140,30 @@ class NChannelPhotosDataset(SinglePhotoDataset):
         df: pd.DataFrame,
         nb_input_photos_per_plane: int = 1,
         transform: transforms.Compose = transforms.Compose([transforms.ToTensor()]),
+        width: int = 64,
         order: str = "xyz",
         noise: int = 0,
-        proba_rotating=0,
-        proba_axis={0: 1 / 3, 1: 1 / 3, 2: 1 / 3},
-        proba_angle={90: 0.5, -90: 0.5},
-        mode="replace",
+        proba_rotating: float = 0,
+        proba_axis: dict = {0: 1 / 3, 1: 1 / 3, 2: 1 / 3},
+        proba_angle: dict = {90: 0.5, -90: 0.5},
+        mode: str = "replace",
     ):
         """Constructor
 
         Args:
             df (pd.DataFrame): original dataframe to be used
             nb_input_photos_per_plane (int): Number of sliced images to use. Defaults to 1.
-            normalization (Union[bool, List[float]], optional): normalization parameters
-                If a list is provided, the first item is the min and the second item is the max value to use to normalize the data.
-                If a bool is provided, it precises whether to normalize or not.
-                Defaults to True.
             transform (transforms.Compose, optional): Basic transformation to do on images. Defaults to transforms.Compose([transforms.ToTensor()]).
+            width (int): width of the photos. Defaults to 64.
+            order (str): order of the stacked channels. Defaults to "xyz".
+            noise (int): noise added to the lables. Defaults to 0.
+            proba_rotating (float): probability of rotating a rev, in data augmentation. Defaults to 0.
+            proba_axis (dict): dictionnary whose keys are {0, 1, 2} and the values are probabilites of a rotating around 0, 1 or 2nd axis. Defaults to {0: 1 / 3, 1: 1 / 3, 2: 1 / 3}.
+            proba_angle (dict): dictionnary whose keys are {-90, 90} and the values are probabilites of a rotating around of -90 or 90°. Defaults to {90: 0.5, -90: 0.5}.
+            mode (str): Whether to do the data augmentation on the fly (`replace`) or appending in the dataset (`append`). Defaults to replace.
         """
+
+        self.width = width
         self.nb_input_photos_per_plane = nb_input_photos_per_plane
         self.noise = noise
         self.proba_rotating = proba_rotating
@@ -181,165 +187,50 @@ class NChannelPhotosDataset(SinglePhotoDataset):
         #         lambda x: x + torch.Tensor(x.shape).uniform_(-1, 1) * self.std * noise
         #     )
 
-    def fetch_img_aug(self, angle, axis):
-        if axis == 0:
-            return RotateImgOnX(angle, self.nb_input_photos_per_plane)
-        if axis == 1:
-            return RotateImgOnY(angle, self.nb_input_photos_per_plane)
-        if axis == 2:
-            return RotateImgOnZ(angle, self.nb_input_photos_per_plane)
-        raise NotImplemented("")
-
-    def data_augmente_transformations(
-        self,
-        shape,
-    ):
-        indexes = np.random.binomial(1, self.proba_rotating, size=shape)
-        axis = np.random.choice(
-            list(self.proba_axis.keys()), size=shape, p=list(self.proba_axis.values())
-        )
-        angle = torch.Tensor(
-            np.random.choice(
-                list(self.proba_angle.keys()),
-                size=shape,
-                p=list(self.proba_angle.values()),
-            )
-        )
-        image_transformations = [
-            None if idx == 0 else self.fetch_img_aug(angle, axis)
-            for idx, angle, axis in zip(indexes, angle, axis)
-        ]
-        label_transformations = [
-            None if idx == 0 else RotateLabel(angle, axis)
-            for idx, angle, axis in zip(indexes, angle, axis)
-        ]
-        return image_transformations, label_transformations
-
-    def __len__(self):
-        return len(self.labels)
-
-    def __getitem__(self, idx: int):
-        """Method for dataset[idx]
+    def fetch_img_aug(self, angle: int, axis: int) -> Callable:
+        """Fetch the data augmentation rotation function.
 
         Args:
-            idx (int): index of the dataset to fetch
+            angle (int): angle of the rotation
+            axis (int): axis of the rotation
+
+        Raises:
+            NotImplemented: if the axis is not in `[0, 1, 2]`
 
         Returns:
-            tuple: first item is the feature (image) of size `(C, W, H)`. Each channel corresponds to an image.
-                The second item is the target (fabric descriptors)
+            Callable: function/class which can be called to augment the inputs
         """
-        img_paths = self.images[idx]
-        labels = self.labels[idx, :]
-        if isinstance(img_paths[0], str):
-            img_paths = [img_paths]
-            labels = [labels]
-        aug_image_transforms, label_transforms = self.data_augmente_transformations(
-            len(img_paths)
-        )
-        print(aug_image_transforms[0])
-        images = [
-            [
-                transforms.ToTensor()(Image.open(img).convert("RGB").convert("1"))
-                for img in img_path
-            ]
-            for img_path in img_paths
-        ]
-
-        if self.image_transform is not None:
-            images = [self.image_transform(torch.cat(image)) for image in images]
-
-        images = [
-            aug_image_transform(image) if aug_image_transform is not None else image
-            for aug_image_transform, image in zip(aug_image_transforms, images)
-        ]
-        labels = [
-            label_transform(label) if label_transform is not None else label
-            for label_transform, label in zip(label_transforms, labels)
-        ]
-        return torch.stack(images), torch.stack(labels)
-
-
-class NChannelPhotosDataset(SinglePhotoDataset):
-    """Dataset whose inputs are images of size `(C, W, H)`. On each channel, there is a white and black image corresponding to a sliced image.
-
-    Attributes:
-        nb_input_photos_per_plane (int): number of sliced images per plane in the input. For instance,
-            if we chose `nb_input_photos_per_plane=2`, the input will have a size `(nb_input_photos_per_plane*3, W, H)`:
-                * the first 2 images are sliced images from x plane
-                * the 2 next images are sliced images from y plane
-                * the 2 final images are sliced images from z plane
-    """
-
-    def __init__(
-        self,
-        df: pd.DataFrame,
-        nb_input_photos_per_plane: int = 1,
-        transform: transforms.Compose = transforms.Compose([transforms.ToTensor()]),
-        order: str = "xyz",
-        noise: int = 0,
-        proba_rotating=0,
-        proba_axis={0: 1 / 3, 1: 1 / 3, 2: 1 / 3},
-        proba_angle={90: 0.5, -90: 0.5},
-        mode="replace",
-    ):
-        """Constructor
-
-        Args:
-            df (pd.DataFrame): original dataframe to be used
-            nb_input_photos_per_plane (int): Number of sliced images to use. Defaults to 1.
-            normalization (Union[bool, List[float]], optional): normalization parameters
-                If a list is provided, the first item is the min and the second item is the max value to use to normalize the data.
-                If a bool is provided, it precises whether to normalize or not.
-                Defaults to True.
-            transform (transforms.Compose, optional): Basic transformation to do on images. Defaults to transforms.Compose([transforms.ToTensor()]).
-        """
-        self.nb_input_photos_per_plane = nb_input_photos_per_plane
-        self.noise = noise
-        self.proba_rotating = proba_rotating
-        self.proba_axis = proba_axis
-        self.proba_angle = proba_angle
-        self.mode = mode
-        df = dataframe_reformat.convert_into_n_entry_df(
-            df,
-            col_name="photos",
-            nb_input_photos_per_plane=self.nb_input_photos_per_plane,
-            order=order,
-        )
-        df.reset_index(drop=True, inplace=True)
-        df = df.drop(columns=["id"], inplace=False)
-        self.images = df.pop("photos").to_numpy()
-        self.labels = torch.Tensor(df.to_numpy())
-        self.image_transform = transform
-        # self.std = np.std(self.labels, axis=0)
-        # if noise != 0:
-        #     self.label_transform = transforms.Lambda(
-        #         lambda x: x + torch.Tensor(x.shape).uniform_(-1, 1) * self.std * noise
-        #     )
-
-    def fetch_img_aug(self, angle, axis):
         if axis == 0:
             return RotateImgOnX(angle, self.nb_input_photos_per_plane)
         if axis == 1:
             return RotateImgOnY(angle, self.nb_input_photos_per_plane)
         if axis == 2:
             return RotateImgOnZ(angle, self.nb_input_photos_per_plane)
-        raise NotImplemented("")
+        raise NotImplementedError("")
 
     def data_augmente_transformations(
         self,
-        shape,
-    ):
+        length: int,
+    ) -> List[Callable]:
+        """Creates `length` image and label transformations.
+
+        Args:
+            length (int): size of the transformations.
+
+        Returns:
+            List[Callable]: list of callable of length `length`
+        """
         nb_rotation = 3
-        indexes = np.random.binomial(1, self.proba_rotating, size=shape)
+        indexes = np.random.binomial(1, self.proba_rotating, size=length)
         axis = np.random.choice(
             list(self.proba_axis.keys()),
-            size=(shape, nb_rotation),
+            size=(length, nb_rotation),
             p=list(self.proba_axis.values()),
         )
         angle = torch.Tensor(
             np.random.choice(
                 list(self.proba_angle.keys()),
-                size=(shape, nb_rotation),
+                size=(length, nb_rotation),
                 p=list(self.proba_angle.values()),
             )
         )
@@ -362,6 +253,11 @@ class NChannelPhotosDataset(SinglePhotoDataset):
         return image_transformations, label_transformations
 
     def __len__(self):
+        """Computes the length of the dataset
+
+        Returns:
+            int: length of the dataset
+        """
         return len(self.labels)
 
     def __getitem__(self, idx: int):
@@ -379,12 +275,15 @@ class NChannelPhotosDataset(SinglePhotoDataset):
         if isinstance(img_paths[0], str):
             img_paths = [img_paths]
             labels = [labels]
+
         aug_image_transforms, label_transforms = self.data_augmente_transformations(
             len(img_paths)
         )
         images = [
             [
-                transforms.ToTensor()(Image.open(img).convert("RGB").convert("1"))
+                transforms.Resize((self.width, self.width))(
+                    transforms.ToTensor()(Image.open(img).convert("RGB").convert("1"))
+                )
                 for img in img_path
             ]
             for img_path in img_paths
@@ -404,3 +303,135 @@ class NChannelPhotosDataset(SinglePhotoDataset):
         if len(images) == 1:
             return images[0], labels[0]
         return torch.stack(images), torch.stack(labels)
+
+
+class NWidthPhotosDataset(SinglePhotoDataset):
+    """Dataset whose inputs are images of size `(C, W, H)`. On each channel, there is a white and black image corresponding to a sliced image.
+
+    Attributes:
+        nb_input_photos_per_plane (int): number of sliced images per plane in the input. For instance,
+            if we chose `nb_input_photos_per_plane=2`, the input will have a size `(nb_input_photos_per_plane*3, W, H)`:
+                * the first 2 images are sliced images from x plane
+                * the 2 next images are sliced images from y plane
+                * the 2 final images are sliced images from z plane
+    """
+
+    def __init__(
+        self,
+        df: pd.DataFrame,
+        nb_input_photos_per_plane: int = 1,
+        transform: transforms.Compose = transforms.Compose([transforms.ToTensor()]),
+        width: int = 64,
+        order: str = "xyz",
+        noise: int = 0,
+        proba_rotating: float = 0,
+        proba_axis: dict = {0: 1 / 3, 1: 1 / 3, 2: 1 / 3},
+        proba_angle: dict = {90: 0.5, -90: 0.5},
+        mode: str = "replace",
+    ):
+        """Constructor
+
+        Args:
+            df (pd.DataFrame): original dataframe to be used
+            nb_input_photos_per_plane (int): Number of sliced images to use. Defaults to 1.
+            transform (transforms.Compose, optional): Basic transformation to do on images. Defaults to transforms.Compose([transforms.ToTensor()]).
+            width (int): width of the photos. Defaults to 64.
+            order (str): order of the stacked channels. Defaults to "xyz".
+            noise (int): noise added to the lables. Defaults to 0.
+            proba_rotating (float): probability of rotating a rev, in data augmentation. Defaults to 0.
+            proba_axis (dict): dictionnary whose keys are {0, 1, 2} and the values are probabilites of a rotating around 0, 1 or 2nd axis. Defaults to {0: 1 / 3, 1: 1 / 3, 2: 1 / 3}.
+            proba_angle (dict): dictionnary whose keys are {-90, 90} and the values are probabilites of a rotating around of -90 or 90°. Defaults to {90: 0.5, -90: 0.5}.
+            mode (str): Whether to do the data augmentation on the fly (`replace`) or appending in the dataset (`append`). Defaults to replace.
+        """
+        self.width = width
+        self.nb_input_photos_per_plane = nb_input_photos_per_plane
+        self.noise = noise
+        self.proba_rotating = proba_rotating
+        self.proba_axis = proba_axis
+        self.proba_angle = proba_angle
+        self.mode = mode
+        df = dataframe_reformat.convert_into_n_width_df(
+            df,
+            col_name="photos",
+            nb_input_photos_per_plane=self.nb_input_photos_per_plane,
+            order=order,
+        )
+        df.reset_index(drop=True, inplace=True)
+        df = df.drop(columns=["id"], inplace=False)
+        self.images = np.stack(df.pop("photos"))
+        self.labels = torch.Tensor(df.to_numpy())
+        self.image_transform = transform
+        # self.std = np.std(self.labels, axis=0)
+        # if noise != 0:
+        #     self.label_transform = transforms.Lambda(
+        #         lambda x: x + torch.Tensor(x.shape).uniform_(-1, 1) * self.std * noise
+        #     )
+
+    def __len__(self):
+        """Computes the length of the dataset
+
+        Returns:
+            int: length of the dataset
+        """
+        return len(self.labels)
+
+    def _load_images(self, axis: int, img_paths: List[List[str]]) -> List[torch.Tensor]:
+        """Load images along axis
+
+        Args:
+            axis (int): One of `0`, `1` and `2`.
+            img_paths (List[List[List[str]]]): List whose elements are images of a rev.
+                This element is a list of length 3 composed a of a list of path to images. We have:
+                    * img_paths[0] = images of the 1st REV
+                        ** img_paths[0][0] = image paths of x-axis of the 1st REV
+                        ** img_paths[0][1] = image paths of y-axis of the 1st REV
+                        ** img_paths[0][2] = image paths of z-axis of the 1st REV
+                    * img_paths[1] = images of the 2nd REV
+                    * ...
+
+        Returns:
+            List[torch.Tensor]: List whose elements are tensors of a rev.
+                This is element is a tensor of shape `(3, 64, n*64)`, because we concatenate the `n` images of the same axis in the width.
+        """
+        images = [
+            [
+                transforms.Resize((self.width, self.width))(
+                    transforms.ToTensor()(Image.open(img).convert("RGB").convert("1"))
+                )
+                for img in img_path[axis]
+            ]
+            for img_path in img_paths
+        ]
+
+        if self.image_transform is not None:
+            images = [[self.image_transform(img) for img in image] for image in images]
+            images = [torch.cat(x_image, axis=2) for x_image in images]
+        return images
+
+    def __getitem__(self, idx: int):
+        """Method for dataset[idx]
+
+        Args:
+            idx (int): index of the dataset to fetch
+
+        Returns:
+            tuple: first item is the feature (image) of size `(C, W, H)`. Each channel corresponds to an image.
+                The second item is the target (fabric descriptors)
+        """
+        img_paths = self.images[idx]
+        labels = self.labels[idx, :]
+        if len(img_paths.shape) == 2:
+            img_paths = np.expand_dims(img_paths, 0)
+            labels = torch.unsqueeze(labels, 0)
+
+        x_images = self._load_images(0, img_paths)
+        y_images = self._load_images(1, img_paths)
+        z_images = self._load_images(2, img_paths)
+
+        images = [
+            torch.cat([x_image, y_image, z_image], axis=0)
+            for x_image, y_image, z_image in zip(x_images, y_images, z_images)
+        ]
+        if len(images) == 1:
+            return images[0], labels[0]
+        return torch.stack(images), labels
