@@ -4,6 +4,7 @@ classdef grain
         P % points of the triangulation
         CL % connectivity list of the triangulation
         coeff % vectors of the PCA whose features are the triangulation points
+        barycenter
     end
 
     methods
@@ -13,6 +14,7 @@ classdef grain
             obj.P = obj.TR.Points;
             obj.CL = obj.TR.ConnectivityList;
             [obj.coeff, ~, ~] = pca(obj.P);
+            obj.barycenter = mean(obj.P);
         end
 
         function grain_size_along_axis = compute_grain_size_along_axis(obj, vector)
@@ -49,7 +51,6 @@ classdef grain
             grain_angles = horzcat(theta, phi);
         end
 
-
         function fabrics = compute_fabrics(obj)
             % Computes the fabrics of the grain: orientation, aspect ratio,
             % size, solidity, roundness, grain volume
@@ -58,19 +59,20 @@ classdef grain
             
             % angles = obj.compute_grain_angles();
             m = obj.coeff(:, 1) * obj.coeff(:, 1).';
-            A1 = trace(m);
-            A2 = (m(1, 1)*m(2, 2) - m(1, 2)*m(2, 1)) + (m(2, 2)*m(3, 3) - m(2, 3)*m(3, 2)) + (m(1, 1)*m(3, 3) - m(1, 3)*m(3, 1));
-            A3 = det(m);
-            disp(charpoly(m))
-            % orientation_vector = [m(1, 1), m(2, 2), m(3, 3), m(2, 3), m(1, 3), m(1, 2)];
+%             A1 = trace(m);
+%             A2 = (m(1, 1)*m(2, 2) - m(1, 2)*m(2, 1)) + (m(2, 2)*m(3, 3) - m(2, 3)*m(3, 2)) + (m(1, 1)*m(3, 3) - m(1, 3)*m(3, 1));
+%             A3 = det(m);
+            orientation_vector = [m(1, 1), m(2, 2), m(3, 3), m(2, 3), m(1, 3), m(1, 2)];
             size = obj.compute_grain_size_along_axis(obj.coeff(:, 1));
             sphere_volume = 4 / 3 * pi * (size / 2)^3;
             roundness = grain_volume / sphere_volume;
             aspect_ratio = [obj.compute_grain_size_along_axis(obj.coeff(:, 2)), obj.compute_grain_size_along_axis(obj.coeff(:, 3))] / size;
             solidity = grain_volume / grain_convex_volum;
 
-            % fabrics = horzcat(angles, orientation_vector, aspect_ratio, size, solidity, roundness, grain_volume);
-            fabrics = horzcat([A1, A2, A3], aspect_ratio, size, solidity, roundness, grain_volume);
+
+            fabrics = horzcat(orientation_vector, aspect_ratio, size, solidity, roundness, grain_volume);
+%             fabrics = horzcat(angles, orientation_vector, aspect_ratio, size, solidity, roundness, grain_volume);
+%             fabrics = horzcat([A1, A2, A3], aspect_ratio, size, solidity, roundness, grain_volume);
 
         end
     end

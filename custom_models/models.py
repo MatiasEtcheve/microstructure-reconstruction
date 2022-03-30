@@ -121,7 +121,7 @@ class VGG11(BaseModel):
         )
 
 
-class VGG16_bn(BaseModel):
+class PreTrainedVGG16(BaseModel):
     def __init__(self, config, scaler=None):
         super().__init__(config)
 
@@ -160,9 +160,6 @@ class VGG16_bn(BaseModel):
         input_fc = int(width ** 2 * nb_channels)
         # fully connected linear layers
         self.linear_layers = nn.Sequential(
-            #             nn.BatchNorm2d(nb_channels),
-            #             nn.ReLU(),
-            #             nn.MaxPool2d(kernel_size=2, stride=2),
             nn.Flatten(),
             nn.Linear(in_features=input_fc, out_features=512),
             nn.ReLU(),
@@ -235,3 +232,105 @@ class PreTrainedResnet(BaseModel):
         x = self.layers(x)
         x = self.linear_layers(x)
         return x
+
+
+class PreTrainedEfficientNet(BaseModel):
+    def __init__(self, config, scaler=None):
+        super().__init__(config)
+
+        self.config = config
+        self.config["model_type"] = type(self)
+        self.scaler = scaler
+
+        self.configure_model()
+        self.configure_criterion()
+        self.configure_metrics()
+
+    def freeze_sequence(self, sequence, current_layer, str):
+        print(str, current_layer[0], type(sequence))
+        if (
+            isinstance(sequence, nn.Sequential)
+            or isinstance(sequence, pretrained_models.efficientnet.ConvNormActivation)
+            or isinstance(sequence, pretrained_models.efficientnet.MBConv)
+            or isinstance(sequence, pretrained_models.efficientnet.SqueezeExcitation)
+        ):
+            for idx, child in enumerate(sequence.children()):
+                self.freeze_sequence(child, current_layer, str + "\t")
+        if current_layer[0] < self.config["fixed_layers"] and isinstance(
+            sequence, nn.Conv2d
+        ):
+            for param in sequence.parameters():
+                param.requires_grad = False
+        current_layer[0] += 1
+
+    def configure_model(self):
+        assert self.config["total_layers"] >= self.config["fixed_layers"]
+        effnet = pretrained_models.efficientnet_b0(pretrained=True)
+        self.layers = nn.Sequential(*(list(effnet.features.children())[:-1]))
+        self.freeze_sequence(self.layers, [0], "")
+
+        nb_channels, height, width = (
+            self.layers(
+                torch.rand(
+                    (
+                        1,
+                        3,
+                        self.config["input_width"],
+                        config["nb_image_per_axis"] * self.config["input_width"],
+                    )
+                )
+            )
+            .squeeze()
+            .shape
+        )
+
+        input_fc = int(height * width * nb_channels)
+        self.linear_layers = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(in_features=input_fc, out_features=512),
+            nn.ReLU(),
+            nn.Dropout2d(0.5),
+            nn.Linear(in_features=512, out_features=512),
+            nn.ReLU(),
+            nn.Dropout2d(0.5),
+            nn.Linear(in_features=512, out_features=23),
+        )
+
+    def forward(self, x):
+        x = self.layers(x)
+        x = self.linear_layers(x)
+        return x
+
+
+if __name__ == '__main':
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda" if use_cuda else "cpu")
+    config = {}
+    config["train_val_split"] = 0.7
+    config["seed"] = 42
+    config["batch_size"] = 64
+    config["device"] = device
+    config["learning_rate"] = 0.0001
+    config["momentum"] = 0.9
+    config["architecture"] = "pretrained VGG"
+    config["input_width"] = 64
+    config["weight_decay"] = 0.00005
+    config["epochs"] = 0
+    config["frac_sample"] = 1
+    config["frac_noise"] = 0
+    config["nb_image_per_axis"] = 5
+    config["total_layers"] = 24
+    config["fixed_layers"] = 0
+
+    model = PreTrainedEfficientNet(config)
+    print("PARAM:", sum(p.numel() for p in model.parameters() if p.requires_grad))
+    model(
+        torch.rand(
+            (
+                1,
+                3,
+                config["input_width"],
+                config["nb_image_per_axis"] * config["input_width"],
+            )
+        )
+    )

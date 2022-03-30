@@ -6,6 +6,7 @@ classdef rev
         CL % connectivity list of the triangulation
         grains % cell of grain objects
         total_volume % total volume of the rev
+        barycenters
         x_min
         y_min
         z_min
@@ -32,33 +33,44 @@ classdef rev
             obj.x_max = max(obj.P(:, 1));
             obj.y_max = max(obj.P(:, 2));
             obj.z_max = max(obj.P(:, 3));
-% 
-%             obj.total_volume = prod(max(obj.P)-min(obj.P));
-% 
-%             AdjMat = false(size(obj.P, 1));
-%             for kk = 1:size(TR, 1)
-%                 AdjMat(TR(kk, 1), TR(kk, 2)) = true;
-%                 AdjMat(TR(kk, 2), TR(kk, 3)) = true;
-%                 AdjMat(TR(kk, 3), TR(kk, 1)) = true;
-%             end
-%             [point_index_grain, bin_sizes] = conncomp(graph(AdjMat));
-%             [~, number_grains] = size(bin_sizes);
-% 
-%             % we create a obj.grains list, whose values are grain object
-%             % to know which point of the rev belongs to which grain, we us the adjency matrix
-%             grains = cell(number_grains, 1);
-%             parfor grain_index = 1:number_grains
-%                 grain_point_indexes = find(point_index_grain(:, :) == grain_index).';
-%                 cl_index = ismember(TR.ConnectivityList(:, 1), grain_point_indexes);
-%                 grain_triangulation = triangulation(TR.ConnectivityList(cl_index, :)-min(TR.ConnectivityList(cl_index, :), [], 'all')+1, TR.Points(grain_point_indexes, :));
-%                 grains{grain_index} = grain(grain_triangulation);
-%             end
-%             obj.grains = grains;
+
+            obj.total_volume = prod(max(obj.P)-min(obj.P));
+
+            AdjMat = false(size(obj.P, 1));
+            for kk = 1:size(TR, 1)
+                AdjMat(TR(kk, 1), TR(kk, 2)) = true;
+                AdjMat(TR(kk, 2), TR(kk, 3)) = true;
+                AdjMat(TR(kk, 3), TR(kk, 1)) = true;
+            end
+            [point_index_grain, bin_sizes] = conncomp(graph(AdjMat));
+            [~, number_grains] = size(bin_sizes);
+
+            % we create a obj.grains list, whose values are grain object
+            % to know which point of the rev belongs to which grain, we us the adjency matrix
+            grains = cell(number_grains, 1);
+            barycenters = zeros(number_grains, 3);
+            parfor grain_index = 1:number_grains
+                grain_point_indexes = find(point_index_grain(:, :) == grain_index).';
+                cl_index = ismember(TR.ConnectivityList(:, 1), grain_point_indexes);
+                grain_triangulation = triangulation(TR.ConnectivityList(cl_index, :)-min(TR.ConnectivityList(cl_index, :), [], 'all')+1, TR.Points(grain_point_indexes, :));
+                grains{grain_index} = grain(grain_triangulation);
+                barycenters(grain_index, :) = grains{grain_index}.barycenter;
+            end
+            obj.grains = grains;
+            obj.barycenters = barycenters;
+        end
+        
+        function [m, s] = compute_distance_to_nearest(obj)
+            D = squareform(pdist(obj.barycenters));
+            D = D + max(D(:))*eye(size(D)); % ignore zero distances on diagonals 
+            distance_to_nearest = min(D, [],2);
+            m = mean(distance_to_nearest);
+            s = std(distance_to_nearest);
         end
 
         function fabrics = compute_fabrics(obj)
             % computes the fabrics of each grain and append it to a list
-            fabrics = zeros(length(obj.grains), 9);
+            fabrics = zeros(length(obj.grains), 12);
             for index = 1:length(obj.grains)
                 fabrics(index, :) = obj.grains{index}.compute_fabrics();
             end
@@ -66,6 +78,7 @@ classdef rev
 
         function input_fabrics = compute_input_fabrics(obj, save)
             % creates a well-formed input fabrics with mean and std
+            [mean_nearest_distance, std_nearest_distance] = obj.compute_distance_to_nearest();
             fabrics = obj.compute_fabrics();
             average = mean(fabrics(:, 1:end-1));
             deviation = std(fabrics(:, 1:end-1));
@@ -75,7 +88,7 @@ classdef rev
             % six next values are orientation (mean and std)
             % following 2 values are aspect ratios (mean and std)
             % input_fabrics = [average(1:2), deviation(1:2), average(3:8), deviation(3:8), average(9:10), deviation(9:10)];
-            input_fabrics = [average(1:6), deviation(1:6), average(7:8), deviation(7:8)];
+            input_fabrics = [mean_nearest_distance, std_nearest_distance, average(1:6), deviation(1:6), average(7:8), deviation(7:8)];
 
             % following 3 values are size, solidity and roundness (mean and std)
             for i = 9:11
