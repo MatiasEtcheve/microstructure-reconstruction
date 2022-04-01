@@ -60,7 +60,7 @@ class BaseModel(pl.LightningModule):
             "smape": torchmetrics.SymmetricMeanAbsolutePercentageError().to(
                 self.config["device"]
             ),
-            "r2_score": torchmetrics.R2Score(num_outputs=23).to(self.config["device"]),
+            "r2_score": torchmetrics.R2Score(num_outputs=25).to(self.config["device"]),
             "cosine_similarity": torchmetrics.CosineSimilarity(reduction="mean").to(
                 self.config["device"]
             ),
@@ -121,7 +121,7 @@ class VGG11(BaseModel):
         )
 
 
-class PreTrainedVGG16(BaseModel):
+class PreTrainedVGG(BaseModel):
     def __init__(self, config, scaler=None):
         super().__init__(config)
 
@@ -147,17 +147,22 @@ class PreTrainedVGG16(BaseModel):
         #                 reset_parameters = getattr(child, "reset_parameters", None)
         #                 if callable(reset_parameters):
         #                     child.reset_parameters()
-        nb_channels, width, a = (
+        #         self.max_pool = nn.MaxPool2d(kernel_size=(1, 2), stride=(1, 2), padding=0, dilation=1, ceil_mode=False)
+        nb_channels, height, width = (
             self.layers(
                 torch.rand(
-                    (1, 3, self.config["input_width"], self.config["input_width"])
+                    (
+                        1,
+                        3,
+                        self.config["input_width"],
+                        config["nb_image_per_axis"] * self.config["input_width"],
+                    )
                 )
             )
             .squeeze()
             .shape
         )
-
-        input_fc = int(width ** 2 * nb_channels)
+        input_fc = int(height * width * nb_channels)
         # fully connected linear layers
         self.linear_layers = nn.Sequential(
             nn.Flatten(),
@@ -167,11 +172,12 @@ class PreTrainedVGG16(BaseModel):
             nn.Linear(in_features=512, out_features=512),
             nn.ReLU(),
             nn.Dropout2d(0.5),
-            nn.Linear(in_features=512, out_features=23),
+            nn.Linear(in_features=512, out_features=25),
         )
 
     def forward(self, x):
         x = self.layers(x)
+        #         x = self.max_pool(x)
         x = self.linear_layers(x)
         return x
 
@@ -182,56 +188,9 @@ class PreTrainedVGG16(BaseModel):
         self.log_dict(metrics, on_step=False, on_epoch=True, prog_bar=True)
         return metrics
 
-
-class PreTrainedResnet(BaseModel):
-    def __init__(self, config, scaler=None):
-        super().__init__(config)
-
-        self.config = config
-        self.config["model_type"] = type(self)
-        self.scaler = scaler
-
-        self.configure_model()
-        self.configure_criterion()
-        self.configure_metrics()
-
-    def freeze_sequence(self, sequence, current_layer, str):
-        print(str, current_layer[0], type(sequence))
-        if (
-            isinstance(sequence, nn.Sequential)
-            or isinstance(sequence, pretrained_models.resnet.BasicBlock)
-            or isinstance(sequence, pretrained_models.resnet.Bottleneck)
-        ):
-            for idx, child in enumerate(sequence.children()):
-                self.freeze_sequence(child, current_layer, str + "\t")
-        if current_layer[0] < self.config["fixed_layers"] and isinstance(
-            sequence, nn.Conv2d
-        ):
-            for param in sequence.parameters():
-                param.requires_grad = False
-        current_layer[0] += 1
-
-    def configure_model(self):
-        assert self.config["total_layers"] >= self.config["fixed_layers"]
-        resnet = pretrained_models.resnet18(pretrained=True)
-        self.layers = nn.Sequential(*(list(resnet.children())[:-1]))
-        self.freeze_sequence(self.layers, [0], "")
-
-        self.linear_layers = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(in_features=512, out_features=512),
-            nn.ReLU(),
-            nn.Dropout2d(0.5),
-            nn.Linear(in_features=512, out_features=512),
-            nn.ReLU(),
-            nn.Dropout2d(0.5),
-            nn.Linear(in_features=512, out_features=23),
-        )
-
-    def forward(self, x):
-        x = self.layers(x)
-        x = self.linear_layers(x)
-        return x
+    def configure_criterion(self):
+        self.criterion = nn.L1Loss()
+        self.config["loss_type"] = type(self.criterion)
 
 
 class PreTrainedEfficientNet(BaseModel):
@@ -247,7 +206,7 @@ class PreTrainedEfficientNet(BaseModel):
         self.configure_metrics()
 
     def freeze_sequence(self, sequence, current_layer, str):
-        print(str, current_layer[0], type(sequence))
+        #         print(str, current_layer[0], type(sequence))
         if (
             isinstance(sequence, nn.Sequential)
             or isinstance(sequence, pretrained_models.efficientnet.ConvNormActivation)
@@ -276,7 +235,7 @@ class PreTrainedEfficientNet(BaseModel):
                         1,
                         3,
                         self.config["input_width"],
-                        config["nb_image_per_axis"] * self.config["input_width"],
+                        self.config["nb_image_per_axis"] * self.config["input_width"],
                     )
                 )
             )
@@ -287,13 +246,14 @@ class PreTrainedEfficientNet(BaseModel):
         input_fc = int(height * width * nb_channels)
         self.linear_layers = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(in_features=input_fc, out_features=512),
-            nn.ReLU(),
             nn.Dropout2d(0.5),
-            nn.Linear(in_features=512, out_features=512),
-            nn.ReLU(),
-            nn.Dropout2d(0.5),
-            nn.Linear(in_features=512, out_features=23),
+            nn.Linear(in_features=input_fc, out_features=25),
+            #             nn.ReLU(),
+            #             nn.Dropout2d(0.5),
+            #             nn.Linear(in_features=512, out_features=25),
+            #             nn.ReLU(),
+            #             nn.Dropout2d(0.5),
+            #             nn.Linear(in_features=512, out_features=25),
         )
 
     def forward(self, x):
@@ -301,36 +261,25 @@ class PreTrainedEfficientNet(BaseModel):
         x = self.linear_layers(x)
         return x
 
+    def configure_metrics(self):
+        self.metrics = {
+            "val_loss": self.criterion.to(self.config["device"]),
+            "mae": torchmetrics.MeanAbsoluteError().to(self.config["device"]),
+            "mape": torchmetrics.MeanAbsolutePercentageError().to(
+                self.config["device"]
+            ),
+            "smape": torchmetrics.SymmetricMeanAbsolutePercentageError().to(
+                self.config["device"]
+            ),
+            "r2_score": torchmetrics.R2Score(num_outputs=25).to(self.config["device"]),
+            "cosine_similarity": torchmetrics.CosineSimilarity(reduction="mean").to(
+                self.config["device"]
+            ),
+        }
 
-if __name__ == '__main':
-    use_cuda = torch.cuda.is_available()
-    device = torch.device("cuda" if use_cuda else "cpu")
-    config = {}
-    config["train_val_split"] = 0.7
-    config["seed"] = 42
-    config["batch_size"] = 64
-    config["device"] = device
-    config["learning_rate"] = 0.0001
-    config["momentum"] = 0.9
-    config["architecture"] = "pretrained VGG"
-    config["input_width"] = 64
-    config["weight_decay"] = 0.00005
-    config["epochs"] = 0
-    config["frac_sample"] = 1
-    config["frac_noise"] = 0
-    config["nb_image_per_axis"] = 5
-    config["total_layers"] = 24
-    config["fixed_layers"] = 0
-
-    model = PreTrainedEfficientNet(config)
-    print("PARAM:", sum(p.numel() for p in model.parameters() if p.requires_grad))
-    model(
-        torch.rand(
-            (
-                1,
-                3,
-                config["input_width"],
-                config["nb_image_per_axis"] * config["input_width"],
-            )
-        )
-    )
+    def validation_step(self, batch, batch_idx):
+        x, y = batch
+        y_hat = self(x)
+        metrics = {name: metric(y, y_hat) for name, metric in self.metrics.items()}
+        self.log_dict(metrics, on_step=False, on_epoch=True, prog_bar=True)
+        return metrics
