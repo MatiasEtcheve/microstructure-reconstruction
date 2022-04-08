@@ -101,7 +101,7 @@ class SinglePhotoDataset(torch.utils.data.Dataset):
 
         if len(img_paths.shape) == 0:
             img_paths = np.expand_dims(img_paths, -1)
-            labels = torch.unsqueeze(labels, -1)
+            # labels = torch.unsqueeze(labels, -1)
 
         images = [
             transforms.Resize((self.width, self.width))(
