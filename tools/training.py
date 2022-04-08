@@ -5,8 +5,10 @@ import numpy as np
 import pandas as pd
 import pytorch_lightning as pl
 import torch
+import torchmetrics
 import torchmetrics as metrics
 import wandb
+from torch import nn
 from tqdm import tqdm
 
 from . import inspect_code
@@ -186,3 +188,22 @@ def compute_mae(predictions, targets, by="all", device=None, scaler=None):
     return compute_metric(
         metrics.MeanAbsoluteError(), predictions, targets, by, device, scaler
     )
+
+
+def metrics(predictions, targets):
+    predictions = torch.FloatTensor(predictions)
+    targets = torch.FloatTensor(targets)
+    metrics_str = ""
+    metrics_str += f"COSINE SIMILARITY: {torchmetrics.CosineSimilarity(reduction='mean')(predictions, targets)}\n"
+
+    metrics_str += f"R2 SCORE: {torchmetrics.R2Score(num_outputs=predictions.shape[1])(predictions, targets)}\n"
+    metrics_str += f"SMAPE: {torchmetrics.SymmetricMeanAbsolutePercentageError()(predictions, targets)}\n"
+
+    metrics_str += (
+        f"MAPE: {torchmetrics.MeanAbsolutePercentageError()(predictions, targets)}\n"
+    )
+    metrics_str += f"MAE: {torchmetrics.MeanAbsoluteError()(predictions, targets)}\n"
+    metrics_str += f"MSE: {torchmetrics.MeanSquaredError()(predictions, targets)}\n"
+    metrics_str += f"LOSS: {nn.L1Loss()(predictions, targets)}\n"
+    metrics_str += "_______________________________________________________________"
+    return metrics_str

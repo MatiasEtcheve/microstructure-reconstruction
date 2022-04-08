@@ -60,42 +60,74 @@ classdef rev
             obj.barycenters = barycenters;
         end
         
-        function [m, s] = compute_distance_to_nearest(obj)
+        function distance_to_nearest = compute_distance_to_nearest(obj)
             D = squareform(pdist(obj.barycenters));
             D = D + max(D(:))*eye(size(D)); % ignore zero distances on diagonals 
             distance_to_nearest = min(D, [],2);
-            m = mean(distance_to_nearest);
-            s = std(distance_to_nearest);
         end
 
         function fabrics = compute_fabrics(obj)
             % computes the fabrics of each grain and append it to a list
-            fabrics = zeros(length(obj.grains), 12);
+            fabrics = zeros(length(obj.grains), 9);
             for index = 1:length(obj.grains)
                 fabrics(index, :) = obj.grains{index}.compute_fabrics();
             end
         end
 
+        function [mean_invariants, std_invariants] = compute_invariants(obj, unit_vectors)
+            F11 = unit_vectors(:, 1).*unit_vectors(:, 1);
+            F22 = unit_vectors(:, 2).*unit_vectors(:, 2);
+            F33 = unit_vectors(:, 3).*unit_vectors(:, 3);
+            F12 = unit_vectors(:, 1).*unit_vectors(:, 2);
+            F13 = unit_vectors(:, 1).*unit_vectors(:, 3);
+            F23 = unit_vectors(:, 2).*unit_vectors(:, 3);
+            A1 = F11 + F22 + F33;
+            A2 = (F11.*F22 - F12.*F12) + (F22.*F33 - F23.*F23) + (F11.*F33 - F13.*F13);
+            A3 = F11.*F22.*F33 + 2.*F12.*F23.*F13 - F22.*F13.*F13 - F11.*F23.*F23 - F33.*F12.*F12;
+            invariants = horzcat(A1, A2, A3);
+            mean_invariants = mean(invariants);
+            std_invariants = std(invariants);
+%             orientation_vectors = horzcat(F11, F22, F33, F23, F13, F12);
+        end
+
+        function orientation_vectors = compute_orientation_vectors(obj, unit_vectors)
+            F11 = unit_vectors(:, 1).*unit_vectors(:, 1);
+            F22 = unit_vectors(:, 2).*unit_vectors(:, 2);
+            F33 = unit_vectors(:, 3).*unit_vectors(:, 3);
+            F12 = unit_vectors(:, 1).*unit_vectors(:, 2);
+            F13 = unit_vectors(:, 1).*unit_vectors(:, 3);
+            F23 = unit_vectors(:, 2).*unit_vectors(:, 3);
+            orientation_vectors = horzcat(F11, F22, F33, F23, F13, F12);
+        end
+
         function input_fabrics = compute_input_fabrics(obj, save)
             % creates a well-formed input fabrics with mean and std
-            [mean_nearest_distance, std_nearest_distance] = obj.compute_distance_to_nearest();
             fabrics = obj.compute_fabrics();
-            average = mean(fabrics(:, 1:end-1));
-            deviation = std(fabrics(:, 1:end-1));
+            distance_to_nearest = obj.compute_distance_to_nearest();
+%             [invariants, orientation_vectors] = obj.compute_invariants(fabrics(:, 1:3));
+            [mean_invariants, std_invariants] = obj.compute_invariants(faceNormal(obj.TR));
+            orientation_vectors = obj.compute_orientation_vectors(fabrics(:, 1:3));
+            custom_fabrics = horzcat(distance_to_nearest, orientation_vectors, fabrics(:, 4:end-1));
+            average = horzcat(mean_invariants, mean(custom_fabrics));
+            deviation = horzcat(std_invariants, std(custom_fabrics));
             aggregates_volume = sum(fabrics(:, end));
             global_volume_fraction = aggregates_volume / obj.total_volume;
             % 2 first values are angles and std
             % six next values are orientation (mean and std)
             % following 2 values are aspect ratios (mean and std)
             % input_fabrics = [average(1:2), deviation(1:2), average(3:8), deviation(3:8), average(9:10), deviation(9:10)];
-            input_fabrics = [mean_nearest_distance, std_nearest_distance, average(1:6), deviation(1:6), average(7:8), deviation(7:8)];
-
+%             input_fabrics = [mean_nearest_distance, std_nearest_distance, average(1:6), deviation(1:6), average(7:8), deviation(7:8)];
+            
+            input_fabrics = zeros(1, size(average, 2)+size(deviation, 2)+1);
+            input_fabrics(1, 1:2:end-1) = average;
+            input_fabrics(1, 2:2:end-1) = deviation;
+            input_fabrics(1, end) = global_volume_fraction;
             % following 3 values are size, solidity and roundness (mean and std)
-            for i = 9:11
-                input_fabrics(end+1:end+2) = [average(i), deviation(i)];
-            end
+%             for i = 9:11
+%                 input_fabrics(end+1:end+2) = [average(i), deviation(i)];
+%             end
             % last value is the global volume fraction
-            input_fabrics(end+1) = global_volume_fraction;
+%             input_fabrics(end+1) = global_volume_fraction;
             if save
                 [filepath, name, ~] = fileparts(obj.path);
                 fabrics_file = strcat(filepath, "\fabrics_", name, ".txt");

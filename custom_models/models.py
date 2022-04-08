@@ -155,7 +155,7 @@ class PreTrainedVGG(BaseModel):
                         1,
                         3,
                         self.config["input_width"],
-                        config["nb_image_per_axis"] * self.config["input_width"],
+                        self.config["nb_image_per_axis"] * self.config["input_width"],
                     )
                 )
             )

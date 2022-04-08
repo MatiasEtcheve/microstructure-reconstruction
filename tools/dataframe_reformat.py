@@ -69,9 +69,7 @@ def get_path_image_along_axis(
         return axis not in Path(l).stem
 
 
-def _compute_photos_along_axis(
-    df, axis, col_name="photos", nb_input_photos_per_plane=1
-):
+def _compute_photos_along_axis(df, axis, col_name="photos", nb_image_per_axis=1):
     assert df[col_name].apply(len).min() == df[col_name].apply(len).max()
     nb_photos_per_plane = df[col_name].apply(len).unique().min() // 3
     photos = np.hsplit(
@@ -80,7 +78,7 @@ def _compute_photos_along_axis(
         .explode()
         .to_numpy()
         .reshape(-1, nb_photos_per_plane),
-        list(range(0, nb_photos_per_plane, nb_input_photos_per_plane)),
+        list(range(0, nb_photos_per_plane, nb_image_per_axis)),
     )[1:]
     return np.concatenate(
         [x for x in photos if x.shape[1] == photos[0].shape[1]], axis=0
@@ -88,17 +86,17 @@ def _compute_photos_along_axis(
 
 
 def convert_into_n_entry_df(
-    multi_entry_df, col_name="photos", nb_input_photos_per_plane=1, order="xyz"
+    multi_entry_df, col_name="photos", nb_image_per_axis=1, order="xyz"
 ):
-    assert (multi_entry_df[col_name].apply(len) >= 3 * nb_input_photos_per_plane).all()
+    assert (multi_entry_df[col_name].apply(len) >= 3 * nb_image_per_axis).all()
     x_photos = _compute_photos_along_axis(
-        multi_entry_df, "x", nb_input_photos_per_plane=nb_input_photos_per_plane
+        multi_entry_df, "x", nb_image_per_axis=nb_image_per_axis
     )
     y_photos = _compute_photos_along_axis(
-        multi_entry_df, "y", nb_input_photos_per_plane=nb_input_photos_per_plane
+        multi_entry_df, "y", nb_image_per_axis=nb_image_per_axis
     )
     z_photos = _compute_photos_along_axis(
-        multi_entry_df, "z", nb_input_photos_per_plane=nb_input_photos_per_plane
+        multi_entry_df, "z", nb_image_per_axis=nb_image_per_axis
     )
 
     if order == "random":
@@ -122,7 +120,7 @@ def convert_into_n_entry_df(
 def convert_into_n_width_df(
     multi_entry_df: pd.DataFrame,
     col_name: str = "photos",
-    nb_input_photos_per_plane: int = 4,
+    nb_image_per_axis: int = 4,
     order: str = "xyz",
 ):
     """Convert a dataframe into a n witdh dataframe.
@@ -150,13 +148,13 @@ def convert_into_n_width_df(
     | 2 | ...                                       |
     +---+-------------------------------------------+
 
-    where images along x, y and Z all belongs to the same list. There are `nb_input_photos_per_plane` images on x/y/z axis per rev.
+    where images along x, y and Z all belongs to the same list. There are `nb_image_per_axis` images on x/y/z axis per rev.
     If there are enough photos, we can create more rev.
 
     Args:
         multi_entry_df (pd.DataFrame): dataframe to modify
         col_name (str, optional): column name where the photos are located. Defaults to "photos".
-        nb_input_photos_per_plane (int, optional): number of input photos per plane. Defaults to 4.
+        nb_image_per_axis (int, optional): number of input photos per plane. Defaults to 4.
         order (str, optional): order of the photos. Defaults to "xyz".
 
     Raises:
@@ -164,15 +162,15 @@ def convert_into_n_width_df(
     Returns:
         pd.DataFrame: multi_entry_df where `multi_entry_df[col_name]` has been updated
     """
-    assert (multi_entry_df[col_name].apply(len) >= 3 * nb_input_photos_per_plane).all()
+    assert (multi_entry_df[col_name].apply(len) >= 3 * nb_image_per_axis).all()
     x_photos = _compute_photos_along_axis(
-        multi_entry_df, "x", nb_input_photos_per_plane=nb_input_photos_per_plane
+        multi_entry_df, "x", nb_image_per_axis=nb_image_per_axis
     )
     y_photos = _compute_photos_along_axis(
-        multi_entry_df, "y", nb_input_photos_per_plane=nb_input_photos_per_plane
+        multi_entry_df, "y", nb_image_per_axis=nb_image_per_axis
     )
     z_photos = _compute_photos_along_axis(
-        multi_entry_df, "z", nb_input_photos_per_plane=nb_input_photos_per_plane
+        multi_entry_df, "z", nb_image_per_axis=nb_image_per_axis
     )
 
     if order == "random":

@@ -45,7 +45,7 @@ class SinglePhotoDataset(torch.utils.data.Dataset):
     +------+-------------------+-----+----------------+---------------+----------------------+-------------------+
     | ...                                                                                                        |
     +------+-------------------+-----+----------------+---------------+----------------------+-------------------+
-    | 600N | 0.373141          | ... | 0.030363       | 0.297964      | 0.101607             | "REV2/x-y(N).png" |
+    | 600N | 0.871309          | ... | 0.031973       | 0.891398      | 0.983910             | "REV600/x-y(N).png" |
     +------+-------------------+-----+----------------+---------------+----------------------+-------------------+
 
     Important:
@@ -60,8 +60,8 @@ class SinglePhotoDataset(torch.utils.data.Dataset):
     def __init__(
         self,
         df: pd.DataFrame,
-        col_name_photos: str = "photos",
         transform: transforms.Compose = transforms.Compose([transforms.ToTensor()]),
+        width: int = 64,
         noise: int = 0,
     ):
         """Constructor
@@ -75,27 +75,14 @@ class SinglePhotoDataset(torch.utils.data.Dataset):
                 Defaults to True.
             transform (transforms.Compose, optional): Basic transformation to do on images. Defaults to transforms.Compose([transforms.ToTensor()]).
         """
+        self.width = width
+        self.noise = noise
+        df = dataframe_reformat.convert_into_single_entry_df(df, col_name="photos")
         df.reset_index(drop=True, inplace=True)
         df = df.drop(columns=["id"], inplace=False)
-        df = dataframe_reformat.convert_into_single_entry_df(
-            df, col_name=col_name_photos
-        )
-
-        self.images = df.pop(col_name_photos).to_numpy()
-        self.labels = df.to_numpy()
-
-        if not any(
-            [isinstance(tr, transforms.ToTensor) for tr in transform.transforms]
-        ):
-            transform.transforms.append(transforms.ToTensor())
-
-        self.transform = transform
-        self.label_transform = None
-        self.std = np.std(self.labels, axis=0)
-        if noise != 0:
-            self.label_transform = transforms.Lambda(
-                lambda x: x + torch.Tensor(x.shape).uniform_(-1, 1) * self.std * noise
-            )
+        self.images = np.stack(df.pop("photos"))
+        self.labels = torch.Tensor(df.to_numpy())
+        self.image_transform = transform
 
     def __len__(self):
         return len(self.labels)
@@ -109,27 +96,30 @@ class SinglePhotoDataset(torch.utils.data.Dataset):
         Returns:
             tuple: first item is the feature (image) of size `(W, H)`, the second item is the target (fabric descriptors)
         """
-        img_path = self.images[idx]
-        if isinstance(idx, list):
-            image = [Image.open(path) for path in img_path]
-        else:
-            image = Image.open(img_path).convert("RGB").convert("1")
-            if self.transform:
-                image = self.transform(image)
+        img_paths = self.images[idx]
+        labels = self.labels[idx, :]
 
-        if self.label_transform is not None:
-            label = self.label_transform(torch.Tensor(self.labels[idx, :]))
-        else:
-            label = torch.Tensor(self.labels[idx, :])
-        return image, label
+        if len(img_paths.shape) == 0:
+            img_paths = np.expand_dims(img_paths, -1)
+            labels = torch.unsqueeze(labels, -1)
+
+        images = [
+            transforms.Resize((self.width, self.width))(
+                transforms.ToTensor()(Image.open(path).convert("RGB").convert("1"))
+            )
+            for path in img_paths
+        ]
+        if self.image_transform is not None:
+            images = [self.image_transform(image) for image in images]
+        return torch.cat(images, axis=0), labels
 
 
 class NChannelPhotosDataset(SinglePhotoDataset):
     """Dataset whose inputs are images of size `(C, W, H)`. On each channel, there is a white and black image corresponding to a sliced image.
 
     Attributes:
-        nb_input_photos_per_plane (int): number of sliced images per plane in the input. For instance,
-            if we chose `nb_input_photos_per_plane=2`, the input will have a size `(nb_input_photos_per_plane*3, W, H)`:
+        nb_image_per_axis (int): number of sliced images per plane in the input. For instance,
+            if we chose `nb_image_per_axis=2`, the input will have a size `(nb_image_per_axis*3, W, H)`:
                 * the first 2 images are sliced images from x plane
                 * the 2 next images are sliced images from y plane
                 * the 2 final images are sliced images from z plane
@@ -138,8 +128,8 @@ class NChannelPhotosDataset(SinglePhotoDataset):
     def __init__(
         self,
         df: pd.DataFrame,
-        nb_input_photos_per_plane: int = 1,
-        transform: transforms.Compose = transforms.Compose([transforms.ToTensor()]),
+        nb_image_per_axis: int = 1,
+        transform: transforms.Compose = transforms.Compose([]),
         width: int = 64,
         order: str = "xyz",
         noise: int = 0,
@@ -147,12 +137,13 @@ class NChannelPhotosDataset(SinglePhotoDataset):
         proba_axis: dict = {0: 1 / 3, 1: 1 / 3, 2: 1 / 3},
         proba_angle: dict = {90: 0.5, -90: 0.5},
         mode: str = "replace",
+        nb_input_photos_per_plane=None,
     ):
         """Constructor
 
         Args:
             df (pd.DataFrame): original dataframe to be used
-            nb_input_photos_per_plane (int): Number of sliced images to use. Defaults to 1.
+            nb_image_per_axis (int): Number of sliced images to use. Defaults to 1.
             transform (transforms.Compose, optional): Basic transformation to do on images. Defaults to transforms.Compose([transforms.ToTensor()]).
             width (int): width of the photos. Defaults to 64.
             order (str): order of the stacked channels. Defaults to "xyz".
@@ -164,7 +155,11 @@ class NChannelPhotosDataset(SinglePhotoDataset):
         """
 
         self.width = width
-        self.nb_input_photos_per_plane = nb_input_photos_per_plane
+        self.nb_image_per_axis = (
+            nb_image_per_axis
+            if nb_input_photos_per_plane is None
+            else nb_input_photos_per_plane
+        )
         self.noise = noise
         self.proba_rotating = proba_rotating
         self.proba_axis = proba_axis
@@ -173,7 +168,7 @@ class NChannelPhotosDataset(SinglePhotoDataset):
         df = dataframe_reformat.convert_into_n_entry_df(
             df,
             col_name="photos",
-            nb_input_photos_per_plane=self.nb_input_photos_per_plane,
+            nb_image_per_axis=self.nb_image_per_axis,
             order=order,
         )
         df.reset_index(drop=True, inplace=True)
@@ -201,11 +196,11 @@ class NChannelPhotosDataset(SinglePhotoDataset):
             Callable: function/class which can be called to augment the inputs
         """
         if axis == 0:
-            return RotateImgOnX(angle, self.nb_input_photos_per_plane)
+            return RotateImgOnX(angle, self.nb_image_per_axis)
         if axis == 1:
-            return RotateImgOnY(angle, self.nb_input_photos_per_plane)
+            return RotateImgOnY(angle, self.nb_image_per_axis)
         if axis == 2:
-            return RotateImgOnZ(angle, self.nb_input_photos_per_plane)
+            return RotateImgOnZ(angle, self.nb_image_per_axis)
         raise NotImplementedError("")
 
     def data_augmente_transformations(
@@ -305,12 +300,12 @@ class NChannelPhotosDataset(SinglePhotoDataset):
         return torch.stack(images), torch.stack(labels)
 
 
-class NWidthPhotosDataset(SinglePhotoDataset):
+class NWidthStackedPhotosDataset(SinglePhotoDataset):
     """Dataset whose inputs are images of size `(C, W, H)`. On each channel, there is a white and black image corresponding to a sliced image.
 
     Attributes:
-        nb_input_photos_per_plane (int): number of sliced images per plane in the input. For instance,
-            if we chose `nb_input_photos_per_plane=2`, the input will have a size `(nb_input_photos_per_plane*3, W, H)`:
+        nb_image_per_axis (int): number of sliced images per plane in the input. For instance,
+            if we chose `nb_image_per_axis=2`, the input will have a size `(nb_image_per_axis*3, W, H)`:
                 * the first 2 images are sliced images from x plane
                 * the 2 next images are sliced images from y plane
                 * the 2 final images are sliced images from z plane
@@ -319,21 +314,17 @@ class NWidthPhotosDataset(SinglePhotoDataset):
     def __init__(
         self,
         df: pd.DataFrame,
-        nb_input_photos_per_plane: int = 1,
+        nb_image_per_axis: int = 1,
         transform: transforms.Compose = transforms.Compose([transforms.ToTensor()]),
         width: int = 64,
         order: str = "xyz",
         noise: int = 0,
-        proba_rotating: float = 0,
-        proba_axis: dict = {0: 1 / 3, 1: 1 / 3, 2: 1 / 3},
-        proba_angle: dict = {90: 0.5, -90: 0.5},
-        mode: str = "replace",
     ):
         """Constructor
 
         Args:
             df (pd.DataFrame): original dataframe to be used
-            nb_input_photos_per_plane (int): Number of sliced images to use. Defaults to 1.
+            nb_image_per_axis (int): Number of sliced images to use. Defaults to 1.
             transform (transforms.Compose, optional): Basic transformation to do on images. Defaults to transforms.Compose([transforms.ToTensor()]).
             width (int): width of the photos. Defaults to 64.
             order (str): order of the stacked channels. Defaults to "xyz".
@@ -344,16 +335,12 @@ class NWidthPhotosDataset(SinglePhotoDataset):
             mode (str): Whether to do the data augmentation on the fly (`replace`) or appending in the dataset (`append`). Defaults to replace.
         """
         self.width = width
-        self.nb_input_photos_per_plane = nb_input_photos_per_plane
+        self.nb_image_per_axis = nb_image_per_axis
         self.noise = noise
-        self.proba_rotating = proba_rotating
-        self.proba_axis = proba_axis
-        self.proba_angle = proba_angle
-        self.mode = mode
         df = dataframe_reformat.convert_into_n_width_df(
             df,
             col_name="photos",
-            nb_input_photos_per_plane=self.nb_input_photos_per_plane,
+            nb_image_per_axis=self.nb_image_per_axis,
             order=order,
         )
         df.reset_index(drop=True, inplace=True)
@@ -361,11 +348,6 @@ class NWidthPhotosDataset(SinglePhotoDataset):
         self.images = np.stack(df.pop("photos"))
         self.labels = torch.Tensor(df.to_numpy())
         self.image_transform = transform
-        # self.std = np.std(self.labels, axis=0)
-        # if noise != 0:
-        #     self.label_transform = transforms.Lambda(
-        #         lambda x: x + torch.Tensor(x.shape).uniform_(-1, 1) * self.std * noise
-        #     )
 
     def __len__(self):
         """Computes the length of the dataset
@@ -430,6 +412,46 @@ class NWidthPhotosDataset(SinglePhotoDataset):
 
         images = [
             torch.cat([x_image, y_image, z_image], axis=0)
+            for x_image, y_image, z_image in zip(x_images, y_images, z_images)
+        ]
+        if len(images) == 1:
+            return images[0], labels[0]
+        return torch.stack(images), labels
+
+
+class NWidthConcatPhotosDataset(NWidthStackedPhotosDataset):
+    """Dataset whose inputs are images of size `(C, W, H)`. On each channel, there is a white and black image corresponding to a sliced image.
+
+    Attributes:
+        nb_image_per_axis (int): number of sliced images per plane in the input. For instance,
+            if we chose `nb_image_per_axis=2`, the input will have a size `(nb_image_per_axis*3, W, H)`:
+                * the first 2 images are sliced images from x plane
+                * the 2 next images are sliced images from y plane
+                * the 2 final images are sliced images from z plane
+    """
+
+    def __getitem__(self, idx: int):
+        """Method for dataset[idx]
+
+        Args:
+            idx (int): index of the dataset to fetch
+
+        Returns:
+            tuple: first item is the feature (image) of size `(C, W, H)`. Each channel corresponds to an image.
+                The second item is the target (fabric descriptors)
+        """
+        img_paths = self.images[idx]
+        labels = self.labels[idx, :]
+        if len(img_paths.shape) == 2:
+            img_paths = np.expand_dims(img_paths, 0)
+            labels = torch.unsqueeze(labels, 0)
+
+        x_images = self._load_images(0, img_paths)
+        y_images = self._load_images(1, img_paths)
+        z_images = self._load_images(2, img_paths)
+
+        images = [
+            torch.cat([x_image, y_image, z_image], axis=1)
             for x_image, y_image, z_image in zip(x_images, y_images, z_images)
         ]
         if len(images) == 1:

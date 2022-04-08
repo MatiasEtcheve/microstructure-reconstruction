@@ -52,28 +52,17 @@ classdef grain
         end
 
         function fabrics = compute_fabrics(obj)
-            % Computes the fabrics of the grain: orientation, aspect ratio,
-            % size, solidity, roundness, grain volume
             grain_volume = obj.compute_grain_volume();
             grain_convex_volum = obj.compute_grain_convex_volume();
             
             % angles = obj.compute_grain_angles();
-            m = obj.coeff(:, 1) * obj.coeff(:, 1).';
-%             A1 = trace(m);
-%             A2 = (m(1, 1)*m(2, 2) - m(1, 2)*m(2, 1)) + (m(2, 2)*m(3, 3) - m(2, 3)*m(3, 2)) + (m(1, 1)*m(3, 3) - m(1, 3)*m(3, 1));
-%             A3 = det(m);
-            orientation_vector = [m(1, 1), m(2, 2), m(3, 3), m(2, 3), m(1, 3), m(1, 2)];
-            size = obj.compute_grain_size_along_axis(obj.coeff(:, 1));
-            sphere_volume = 4 / 3 * pi * (size / 2)^3;
+            size_grain = obj.compute_grain_size_along_axis(obj.coeff(:, 1));
+            sphere_volume = 4 / 3 * pi * (size_grain / 2)^3;
             roundness = grain_volume / sphere_volume;
-            aspect_ratio = [obj.compute_grain_size_along_axis(obj.coeff(:, 2)), obj.compute_grain_size_along_axis(obj.coeff(:, 3))] / size;
+            aspect_ratio = [obj.compute_grain_size_along_axis(obj.coeff(:, 2)), obj.compute_grain_size_along_axis(obj.coeff(:, 3))] / size_grain;
             solidity = grain_volume / grain_convex_volum;
 
-
-            fabrics = horzcat(orientation_vector, aspect_ratio, size, solidity, roundness, grain_volume);
-%             fabrics = horzcat(angles, orientation_vector, aspect_ratio, size, solidity, roundness, grain_volume);
-%             fabrics = horzcat([A1, A2, A3], aspect_ratio, size, solidity, roundness, grain_volume);
-
+            fabrics = horzcat(obj.coeff(:, 1).', aspect_ratio, size_grain, solidity, roundness, grain_volume);
         end
     end
 end

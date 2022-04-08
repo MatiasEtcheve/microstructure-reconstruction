@@ -118,7 +118,7 @@ def plot_kde(
     )
     for i in range(nb_features):
         for index, d in enumerate(data):
-            sns.kdeplot(
+            axs[i // nb_hist_per_line, i % nb_hist_per_line] = sns.kdeplot(
                 data=d[:, i],
                 shade=True,
                 ax=axs[i // nb_hist_per_line, i % nb_hist_per_line],
@@ -130,6 +130,13 @@ def plot_kde(
             axs[i // nb_hist_per_line, i % nb_hist_per_line].set_title(
                 f"Histogram of {columns[i]}"
             )
+
+    for row in axs:
+        for ax in row:
+            if not ax.collections:
+                ax.set_visible(False)
+            index += 1
+
     return fig, axs
 
 

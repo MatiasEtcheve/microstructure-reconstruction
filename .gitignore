@@ -1,14 +1,8 @@
 __pycache__/
 *:Zone.Identifier
-**5pics/
-**3pics/
 *.stl
 *.STL
 .python-version
 .vscode/
 .ipynb_checkpoints/
-**/backups/datasets/
-**/backups/models/
-**/backups/metrics/
-**/backups/db.json
 *MBeautifier*
