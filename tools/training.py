@@ -67,7 +67,7 @@ class GeneratedImagesCallback(pl.callbacks.Callback):
             sample_imgs = pl_module(self.descriptors)
             image = wandb.Image(
                 sample_imgs,
-                caption=f"first batch generated at {self.current_epoch}",
+                caption=f"First batch generated at epoch {self.current_epoch}",
             )
             trainer.logger.experiment.log({"generated_images": image})
         self.current_epoch += 1
