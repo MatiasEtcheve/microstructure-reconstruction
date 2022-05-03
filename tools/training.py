@@ -9,6 +9,7 @@ import torchmetrics
 import torchmetrics as metrics
 import wandb
 from torch import nn
+from torchvision import transforms, utils
 from tqdm import tqdm
 
 from . import inspect_code
@@ -36,12 +37,40 @@ class ScriptCheckpoint(pl.callbacks.Callback):
         self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"
     ):
         super().on_pretrain_routine_start(trainer, pl_module)
+
         filename_model = Path(self.dirpath) / "model_script.txt"
         with open(filename_model, "w") as file:
             file.write(inspect_code.get_class_code(type(pl_module)))
         filename_datamodule = Path(self.dirpath) / "datamodule_script.txt"
         with open(filename_datamodule, "w") as file:
             file.write(inspect_code.get_class_code(type(trainer.datamodule)))
+
+        if hasattr(pl_module, "generator"):
+            filename_model = Path(self.dirpath) / "generator_script.txt"
+            with open(filename_model, "w") as file:
+                file.write(inspect_code.get_class_code(type(pl_module.generator)))
+        if hasattr(pl_module, "discriminator"):
+            filename_model = Path(self.dirpath) / "discriminator_script.txt"
+            with open(filename_model, "w") as file:
+                file.write(inspect_code.get_class_code(type(pl_module.discriminator)))
+
+
+class GeneratedImagesCallback(pl.callbacks.Callback):
+    def __init__(self, descriptors, log_every_n_epochs=10):
+        super().__init__()
+        self.descriptors = descriptors
+        self.log_every_n_epochs = log_every_n_epochs
+        self.current_epoch = 0
+
+    def on_train_epoch_end(self, trainer, pl_module):
+        if self.current_epoch % self.log_every_n_epochs == 0:
+            sample_imgs = pl_module(self.descriptors)
+            image = wandb.Image(
+                sample_imgs,
+                caption=f"first batch generated at {self.current_epoch}",
+            )
+            trainer.logger.experiment.log({"generated_images": image})
+        self.current_epoch += 1
 
 
 def train(model, device, train_loader, optimizer, criterion) -> List:

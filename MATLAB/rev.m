@@ -74,23 +74,7 @@ classdef rev
             end
         end
 
-        function [mean_invariants, std_invariants] = compute_invariants(obj, unit_vectors)
-            F11 = unit_vectors(:, 1).*unit_vectors(:, 1);
-            F22 = unit_vectors(:, 2).*unit_vectors(:, 2);
-            F33 = unit_vectors(:, 3).*unit_vectors(:, 3);
-            F12 = unit_vectors(:, 1).*unit_vectors(:, 2);
-            F13 = unit_vectors(:, 1).*unit_vectors(:, 3);
-            F23 = unit_vectors(:, 2).*unit_vectors(:, 3);
-            A1 = F11 + F22 + F33;
-            A2 = (F11.*F22 - F12.*F12) + (F22.*F33 - F23.*F23) + (F11.*F33 - F13.*F13);
-            A3 = F11.*F22.*F33 + 2.*F12.*F23.*F13 - F22.*F13.*F13 - F11.*F23.*F23 - F33.*F12.*F12;
-            invariants = horzcat(A1, A2, A3);
-            mean_invariants = mean(invariants);
-            std_invariants = std(invariants);
-%             orientation_vectors = horzcat(F11, F22, F33, F23, F13, F12);
-        end
-
-        function orientation_vectors = compute_orientation_vectors(obj, unit_vectors)
+        function [invariants, orientation_vectors] = compute_invariants(obj, unit_vectors)
             F11 = unit_vectors(:, 1).*unit_vectors(:, 1);
             F22 = unit_vectors(:, 2).*unit_vectors(:, 2);
             F33 = unit_vectors(:, 3).*unit_vectors(:, 3);
@@ -98,40 +82,91 @@ classdef rev
             F13 = unit_vectors(:, 1).*unit_vectors(:, 3);
             F23 = unit_vectors(:, 2).*unit_vectors(:, 3);
             orientation_vectors = horzcat(F11, F22, F33, F23, F13, F12);
+            f11 = mean(F11);
+            f22 = mean(F22);
+            f33 = mean(F33);
+            f12 = mean(F12);
+            f13 = mean(F13);
+            f23 = mean(F23);
+            A1 = f11 + f22 + f33;
+            A2 = (f11.*f22 - f12.*f12) + (f22.*f33 - f23.*f23) + (f11.*f33 - f13.*f13);
+            A3 = f11.*f22.*f33 + 2.*f12.*f23.*f13 - f22.*f13.*f13 - f11.*f23.*f23 - f33.*f12.*f12;
+            invariants = horzcat(A1, A2, A3);
         end
 
         function input_fabrics = compute_input_fabrics(obj, save)
             % creates a well-formed input fabrics with mean and std
             fabrics = obj.compute_fabrics();
             distance_to_nearest = obj.compute_distance_to_nearest();
-%             [invariants, orientation_vectors] = obj.compute_invariants(fabrics(:, 1:3));
-            [mean_invariants, std_invariants] = obj.compute_invariants(faceNormal(obj.TR));
-            orientation_vectors = obj.compute_orientation_vectors(fabrics(:, 1:3));
+            [invariants, orientation_vectors] = obj.compute_invariants(fabrics(:, 1:3));
             custom_fabrics = horzcat(distance_to_nearest, orientation_vectors, fabrics(:, 4:end-1));
-            average = horzcat(mean_invariants, mean(custom_fabrics));
-            deviation = horzcat(std_invariants, std(custom_fabrics));
+            avg = mean(custom_fabrics);
+            deviation = std(custom_fabrics);
             aggregates_volume = sum(fabrics(:, end));
             global_volume_fraction = aggregates_volume / obj.total_volume;
-            % 2 first values are angles and std
-            % six next values are orientation (mean and std)
-            % following 2 values are aspect ratios (mean and std)
-            % input_fabrics = [average(1:2), deviation(1:2), average(3:8), deviation(3:8), average(9:10), deviation(9:10)];
-%             input_fabrics = [mean_nearest_distance, std_nearest_distance, average(1:6), deviation(1:6), average(7:8), deviation(7:8)];
-            
-            input_fabrics = zeros(1, size(average, 2)+size(deviation, 2)+1);
-            input_fabrics(1, 1:2:end-1) = average;
-            input_fabrics(1, 2:2:end-1) = deviation;
+
+            input_fabrics = zeros(1, size(invariants, 2)+size(avg, 2)+size(deviation, 2)+1);
+            input_fabrics(1, 1:2) = horzcat(avg(1), deviation(1));
+            input_fabrics(1, 3:5) = invariants;
+            input_fabrics(1, 6:17) = horzcat(avg(2:7), deviation(2:7));
+            input_fabrics(1, 18:21) = horzcat(avg(8:9), deviation(8:9));
+            input_fabrics(1, 22:2:end-1) = avg(10:end);
+            input_fabrics(1, 23:2:end-1) = deviation(10:end);
             input_fabrics(1, end) = global_volume_fraction;
-            % following 3 values are size, solidity and roundness (mean and std)
-%             for i = 9:11
-%                 input_fabrics(end+1:end+2) = [average(i), deviation(i)];
-%             end
-            % last value is the global volume fraction
-%             input_fabrics(end+1) = global_volume_fraction;
+
             if save
                 [filepath, name, ~] = fileparts(obj.path);
                 fabrics_file = strcat(filepath, "\fabrics_", name, ".txt");
                 writematrix(input_fabrics, fabrics_file, 'Delimiter', ',')
+            end
+        end
+
+        function inside_matrix = compute_inside_matrix(obj, ti, X, Y, Z)
+            in = inpolyhedron(struct("faces", obj.grains{1}.CL, "vertices", obj.grains{1}.P), X, Y, Z) * 1;
+            for index = 2:length(obj.grains)
+                current_in = inpolyhedron(struct("faces", obj.grains{index}.CL, "vertices", obj.grains{index}.P), X, Y, Z) * index;
+                in = in + current_in;
+            end
+            inside_matrix = squeeze(in);
+        end
+        
+        function [cl, points] = compute_mesh(obj, ti, X)
+            Y = obj.y_min:ti:obj.y_max+ti;
+            Z = obj.z_min:ti:obj.z_max+ti;
+            inside_matrix = obj.compute_inside_matrix(ti, X, Y, Z);
+            
+            nb_rows = length(Y);
+            nb_cols = length(Z);
+            elt_id = 1;
+            array_index = 1;
+
+            cl = cell((nb_rows-1)*(nb_cols-1)+1, 7);
+            cl(1, :) = {"elt_id", "material_id", "object_id", "upleft_node", "downleft_node", "downright_node", "upright_node"};
+            points = cell(nb_rows*nb_cols+1, 3);
+            points(1, :) = {"point_id", "x", "y"};
+            for i = 1:nb_rows
+                for j = 1:nb_cols
+                    grain_id = inside_matrix(i, j);
+                    material_id = 0;
+                    if grain_id > 0
+                        material_id = 1;
+                    end
+                    up_left = array_index;
+                    up_right = array_index+1;
+                    down_left = array_index + nb_cols;
+                    down_right = array_index + nb_cols +1;
+                    
+                    if j<nb_cols && i<nb_rows
+                        cl(elt_id+1, :) = {elt_id, material_id, grain_id, up_left, down_left, down_right, up_right};
+                        points(up_left+1, :) = {up_left, Y(i), Z(j)};
+                        points(down_left+1, :) = {down_left, Y(i+1), Z(j)};
+                        points(down_right+1, :) = {down_right, Y(i+1), Z(j+1)};
+                        points(up_right+1, :) = {up_right, Y(i), Z(j+1)};
+                                   
+                        elt_id = elt_id + 1;
+                    end
+                    array_index = array_index + 1;
+                end
             end
         end
 

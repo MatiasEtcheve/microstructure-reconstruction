@@ -2,6 +2,7 @@ __pycache__/
 *:Zone.Identifier
 *.stl
 *.STL
+*.mat
 .python-version
 .vscode/
 .ipynb_checkpoints/
