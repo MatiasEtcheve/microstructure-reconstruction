@@ -121,7 +121,7 @@ classdef rev
             end
         end
 
-        function inside_matrix = compute_inside_matrix(obj, ti, X, Y, Z)
+        function inside_matrix = compute_inside_matrix(obj, X, Y, Z)
             in = inpolyhedron(struct("faces", obj.grains{1}.CL, "vertices", obj.grains{1}.P), X, Y, Z) * 1;
             for index = 2:length(obj.grains)
                 current_in = inpolyhedron(struct("faces", obj.grains{index}.CL, "vertices", obj.grains{index}.P), X, Y, Z) * index;
@@ -133,7 +133,7 @@ classdef rev
         function [cl, points] = compute_mesh(obj, ti, X)
             Y = obj.y_min:ti:obj.y_max+ti;
             Z = obj.z_min:ti:obj.z_max+ti;
-            inside_matrix = obj.compute_inside_matrix(ti, X, Y, Z);
+            inside_matrix = obj.compute_inside_matrix(X, Y, Z);
             
             nb_rows = length(Y);
             nb_cols = length(Z);

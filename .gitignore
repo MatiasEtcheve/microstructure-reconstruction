@@ -3,6 +3,7 @@ __pycache__/
 *.stl
 *.STL
 *.mat
+*.txt
 .python-version
 .vscode/
 .ipynb_checkpoints/

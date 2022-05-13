@@ -32,11 +32,10 @@ class ScriptCheckpoint(pl.callbacks.Callback):
     def __init__(self, dirpath):
         super().__init__()
         self.dirpath = dirpath
+        Path(self.dirpath).mkdir(parents=True, exist_ok=True)
 
-    def on_pretrain_routine_start(
-        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"
-    ):
-        super().on_pretrain_routine_start(trainer, pl_module)
+    def on_fit_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"):
+        super().on_fit_start(trainer, pl_module)
 
         filename_model = Path(self.dirpath) / "model_script.txt"
         with open(filename_model, "w") as file:
@@ -55,6 +54,30 @@ class ScriptCheckpoint(pl.callbacks.Callback):
                 file.write(inspect_code.get_class_code(type(pl_module.discriminator)))
 
 
+class AutoencoderGeneratedImagesCallback(pl.callbacks.Callback):
+    def __init__(self, images, log_every_n_epochs=10):
+        super().__init__()
+        self.images = images
+        self.log_every_n_epochs = log_every_n_epochs
+        self.current_epoch = 0
+
+    def on_train_epoch_start(self, trainer, pl_module):
+        if self.current_epoch == 0:
+            image = wandb.Image(
+                self.images,
+                caption="Target batch",
+            )
+            trainer.logger.experiment.log({"generated_images": image})
+        if self.current_epoch % self.log_every_n_epochs == 0:
+            sample_imgs = pl_module(self.images)
+            image = wandb.Image(
+                sample_imgs,
+                caption=f"First batch generated at epoch {self.current_epoch}",
+            )
+            trainer.logger.experiment.log({"generated_images": image})
+        self.current_epoch += 1
+
+
 class GeneratedImagesCallback(pl.callbacks.Callback):
     def __init__(self, descriptors, log_every_n_epochs=10):
         super().__init__()
@@ -62,7 +85,7 @@ class GeneratedImagesCallback(pl.callbacks.Callback):
         self.log_every_n_epochs = log_every_n_epochs
         self.current_epoch = 0
 
-    def on_train_epoch_end(self, trainer, pl_module):
+    def on_train_epoch_start(self, trainer, pl_module):
         if self.current_epoch % self.log_every_n_epochs == 0:
             sample_imgs = pl_module(self.descriptors)
             image = wandb.Image(
