@@ -44,14 +44,13 @@ class ScriptCheckpoint(pl.callbacks.Callback):
         with open(filename_datamodule, "w") as file:
             file.write(inspect_code.get_class_code(type(trainer.datamodule)))
 
-        if hasattr(pl_module, "generator"):
-            filename_model = Path(self.dirpath) / "generator_script.txt"
-            with open(filename_model, "w") as file:
-                file.write(inspect_code.get_class_code(type(pl_module.generator)))
-        if hasattr(pl_module, "discriminator"):
-            filename_model = Path(self.dirpath) / "discriminator_script.txt"
-            with open(filename_model, "w") as file:
-                file.write(inspect_code.get_class_code(type(pl_module.discriminator)))
+        for attr in ["generator", "discriminator", "encoder", "decoder"]:
+            if hasattr(pl_module, attr):
+                filename_model = Path(self.dirpath) / f"{attr}_script.txt"
+                with open(filename_model, "w") as file:
+                    file.write(
+                        inspect_code.get_class_code(type(getattr(pl_module, attr)))
+                    )
 
 
 class AutoencoderGeneratedImagesCallback(pl.callbacks.Callback):
