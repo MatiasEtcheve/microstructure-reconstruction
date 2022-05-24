@@ -20,11 +20,12 @@ __pycache__/
 
 # Matlab package
 *MBeautifier*
+*in_polyhedron*
 
 # Wandb directories / files
 *artifact*
-/wandb/
-/data_modification/
+*wandb*
+*data_modification*
 
 # Pytorch lightning directories
 *lightning_logs*
@@ -33,4 +34,4 @@ __pycache__/
 *ckpt*
 
 # Images for reports
-/images/
+*images*
