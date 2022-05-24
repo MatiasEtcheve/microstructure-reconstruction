@@ -181,7 +181,7 @@ class PreTrainedVGG(BaseModel):
         * This model works well.
         * The input of this model is a batch of images of size
             `(N, 3, config["input_width"], config["nb_image_per_axis"]*config["input_width"])`.
-            See `custom_datasets.datasets.NWidthConcatPhotosDataset` for the inputs.
+            See `custom_datasets.datasets.NWidthStackedPhotosDataset` for the inputs.
         * This model predict 25 features.
     """
 
@@ -271,7 +271,7 @@ class PreTrainedResnet(BaseModel):
         * This model doesn't work well.
         * The input of this model is a batch of images of size
             `(N, 3, config["input_width"], config["nb_image_per_axis"]*config["input_width"])`.
-            See `custom_datasets.datasets.NWidthConcatPhotosDataset` for the inputs.
+            See `custom_datasets.datasets.NWidthStackedPhotosDataset` for the inputs.
         * This model predict 25 features.
     """
 
@@ -376,7 +376,7 @@ class PreTrainedEfficientNet(BaseModel):
         * This model doesn't work well.
         * The input of this model is a batch of images of size
             `(N, 3, config["input_width"], config["nb_image_per_axis"]*config["input_width"])`.
-            See `custom_datasets.datasets.NWidthConcatPhotosDataset` for the inputs.
+            See `custom_datasets.datasets.NWidthStackedPhotosDataset` for the inputs.
         * This model predict 25 features.
     """
 
