@@ -24,6 +24,7 @@ __pycache__/
 # Wandb directories / files
 *artifact*
 /wandb/
+/data_modification/
 
 # Pytorch lightning directories
 *lightning_logs*
