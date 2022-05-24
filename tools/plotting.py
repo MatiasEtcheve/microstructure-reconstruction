@@ -1,25 +1,50 @@
 import math
-from typing import List, Optional, Union
+from typing import List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from black import out
-
-
-def get_cmap(n, name="hsv"):
-    """Returns a function that maps each index in 0, 1, ..., n-1 to a distinct
-    RGB color; the keyword argument name must be a standard mpl colormap name."""
-    return plt.cm.get_cmap(name, n)
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 
 
 def plot_hist(
     data: List[Union[pd.DataFrame, np.ndarray]],
     nb_hist_per_line: int = 2,
     columns: Optional[List[str]] = None,
-    labels=["targets", "predictions"],
-):
+    labels: Optional[List[str]] = ["targets", "predictions"],
+) -> Tuple[Figure, Axes]:
+    """Plots histograms of `data`
+
+    Example::
+        targets = pd.DataFrame(...,
+            columns=["feature_A", "feature_B", "feature_C"],
+            index=["observation_1", "observation_2", "observation_3"]
+        )
+        predictions = pd.DataFrame(...,
+            columns=["feature_A", "feature_B", "feature_C"],
+            index=["observation_1", "observation_2", "observation_3"]
+        )
+        fig, axs = plot_hist([targets, predictions], nb_hist_per_line=3)
+
+    Args:
+        data (List[Union[pd.DataFrame, np.ndarray]]): List of data to plot.
+            This data can be a `pd.DataFrame`, where each column will be a feature, and a row is an observation.
+            This data can be a `np.ndarray`, where each column will a feature, and a row will be an observation.
+            Each `pd.DataFrame` / `np.ndarray` in the list must have the same  shape, with the same columns names.
+            The plot of each `pd.DataFrame` / `np.ndarray` will be overlapped.
+        nb_hist_per_line (int, optional): Number of histograms to plot per row. Defaults to 2.
+        columns (Optional[List[str]], optional): Feature's names.
+            If `columns` is `None` and at least one array in `data` is a `pd.DataFrame`, the column names will be inferred from this array.
+            If `columns` is not `None`, it must be a list of size the number of features in each array in `data`.
+            Defaults to None.
+        labels (Optional[List[str]], optional): Labels of each in array in `data\. Defaults to ["targets", "predictions"].
+
+    Returns:
+        Tuple[Figure, Axes]: figure and axes containing the plots
+    """
+
     if isinstance(data, pd.DataFrame):
         if columns is None:
             columns = data.columns
@@ -60,40 +85,51 @@ def plot_hist(
             axs[i // nb_hist_per_line, i % nb_hist_per_line].set_title(
                 f"Histogram of {columns[i]}"
             )
-    return fig, axs
 
-    # for i in range(nb_features):
-    #     sns.histplot(
-    #         data=targets[:, i],
-    #         ax=axs[i // nb_hist_per_line, i % nb_hist_per_line],
-    #         label="target",
-    #         color="blue",
-    #         kde=False,
-    #         **targets_kwargs,
-    #     )
-    #     if predictions is not None:
-    #         sns.histplot(
-    #             data=predictions[:, i],
-    #             ax=axs[i // nb_hist_per_line, i % nb_hist_per_line],
-    #             label="prediction",
-    #             color="orange",
-    #             kde=False,
-    #             **predictions_kwargs,
-    #         )
-    #         axs[i // nb_hist_per_line, i % nb_hist_per_line].legend()
-    #     if columns is not None:
-    #         axs[i // nb_hist_per_line, i % nb_hist_per_line].set_title(
-    #             f"Histogram of {columns[i]}"
-    #         )
-    # return fig, axs
+    for row in axs:
+        for ax in row:
+            if not ax.collections:
+                ax.set_visible(False)
+            index += 1
+
+    return fig, axs
 
 
 def plot_kde(
     data: List[Union[pd.DataFrame, np.ndarray]],
     nb_hist_per_line: int = 2,
     columns: Optional[List[str]] = None,
-    labels=["targets", "predictions"],
-):
+    labels: Optional[List[str]] = ["targets", "predictions"],
+) -> Tuple[Figure, Axes]:
+    """Plots kernel density estimations of `data`
+
+    Example::
+        targets = pd.DataFrame(...,
+            columns=["feature_A", "feature_B", "feature_C"],
+            index=["observation_1", "observation_2", "observation_3"]
+        )
+        predictions = pd.DataFrame(...,
+            columns=["feature_A", "feature_B", "feature_C"],
+            index=["observation_1", "observation_2", "observation_3"]
+        )
+        fig, axs = plot_kde([targets, predictions], nb_hist_per_line=3)
+
+    Args:
+        data (List[Union[pd.DataFrame, np.ndarray]]): List of data to plot.
+            This data can be a `pd.DataFrame`, where each column will be a feature, and a row is an observation.
+            This data can be a `np.ndarray`, where each column will a feature, and a row will be an observation.
+            Each `pd.DataFrame` / `np.ndarray` in the list must have the same  shape, with the same columns names.
+            The plot of each `pd.DataFrame` / `np.ndarray` will be overlapped.
+        nb_hist_per_line (int, optional): Number of histograms to plot per row. Defaults to 2.
+        columns (Optional[List[str]], optional): Feature's names.
+            If `columns` is `None` and at least one array in `data` is a `pd.DataFrame`, the column names will be inferred from this array.
+            If `columns` is not `None`, it must be a list of size the number of features in each array in `data`.
+            Defaults to None.
+        labels (Optional[List[str]], optional): Labels of each in array in `data\. Defaults to ["targets", "predictions"].
+
+    Returns:
+        Tuple[Figure, Axes]: figure and axes containing the plots
+    """
     if isinstance(data, pd.DataFrame):
         if columns is None:
             columns = data.columns
@@ -140,34 +176,15 @@ def plot_kde(
     return fig, axs
 
 
-def plot_pairplot(
-    targets: Union[pd.DataFrame, np.ndarray],
-    predictions: Optional[Union[pd.DataFrame, np.ndarray]] = None,
-    columns: Optional[List[str]] = None,
-):
-    if isinstance(targets, np.ndarray):
-        targets_df = pd.DataFrame(targets, columns=columns)
-    else:
-        targets_df = targets.copy()
-    if predictions is not None:
-        if isinstance(predictions, np.ndarray):
-            predictions_df = pd.DataFrame(predictions, columns=columns)
-        else:
-            predictions_df = predictions.copy()
-        predictions_df["type"] = "predictions"
-        targets_df["type"] = "targets"
-        outputs = pd.concat([predictions_df, targets_df], ignore_index=True)
-    else:
-        outputs = targets_df
-    sns_plot = sns.pairplot(
-        data=outputs,
-        diag_kind="kde",
-        hue="type",
-    )
-    return sns_plot
+def plot_correlation(df: pd.DataFrame) -> Tuple[Figure, Axes]:
+    """Plots the correlation between all the features in a dataframe.
 
+    Args:
+        df (pd.DataFrame): dataframe where the columns are the features and the rows are the observations.
 
-def plot_correlation(df):
+    Returns:
+        Tuple[Figure, Axes]: figure and axes containing the plots
+    """
     fig, ax = plt.subplots(figsize=(15, 10))
     img = ax.matshow(df.corr())
     ax.set_xticks(range(df.select_dtypes(["number"]).shape[1]))

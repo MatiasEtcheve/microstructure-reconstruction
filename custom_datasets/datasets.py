@@ -420,7 +420,7 @@ class NWidthStackedPhotosDataset(SinglePhotoDataset):
 
 
 class NWidthConcatPhotosDataset(NWidthStackedPhotosDataset):
-    """Dataset whose inputs are images of size `(C, W, H)`. On each channel, there is a white and black image corresponding to a sliced image.
+    """Dataset whose inputs are images of size `(C, W, H)`. On each channel, there is a binary image corresponding to a sliced image.
 
     Attributes:
         nb_image_per_axis (int): number of sliced images per plane in the input. For instance,
