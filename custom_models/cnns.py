@@ -77,7 +77,9 @@ class BaseModel(pl.LightningModule):
             "smape": torchmetrics.SymmetricMeanAbsolutePercentageError().to(
                 self.config["device"]
             ),
-            "r2_score": torchmetrics.R2Score(num_outputs=25).to(self.config["device"]),
+            "r2_score": torchmetrics.R2Score(num_outputs=num_outputs).to(
+                self.config["device"]
+            ),
             "cosine_similarity": torchmetrics.CosineSimilarity(reduction="mean").to(
                 self.config["device"]
             ),
