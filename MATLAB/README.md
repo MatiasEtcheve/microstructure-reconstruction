@@ -27,15 +27,11 @@ Firstly, we define the orientation matrix: it is the unique 3x3 symmetric matrix
 
 Major unit vector
 
-```math
-\overrightarrow{n} = [n_1, n_2, n_3]^T
-```
+![equation](https://latex.codecogs.com/png.image?\inline&space;\dpi{100}\bg{white}\overrightarrow{n}&space;=&space;[n_1,&space;n_2,&space;n_3]^T)
 
 Orientation matrix:
 
-```math
-[F_{ij}] = \overrightarrow{n}\overrightarrow{n}^T
-```
+![equation](https://latex.codecogs.com/png.image?\inline&space;\dpi{100}\bg{white}[F_{ij}]&space;=&space;\overrightarrow{n}\overrightarrow{n}^T)
 
 Here is a non exhaustive list of the descriptors we compute:
 
