@@ -31,7 +31,7 @@ Major unit vector
 
 Orientation matrix:
 
-![equation](https://latex.codecogs.com/svg.image?[F_{ij}]&space;=&space;\overrightarrow{n}\overrightarrow{n}^T)
+![equation](https://latex.codecogs.com/svg.image?\bg{white}[F_{ij}]&space;=&space;\overrightarrow{n}\overrightarrow{n}^T)
 
 Here is a non exhaustive list of the descriptors we compute:
 
