@@ -2,6 +2,7 @@
 
 ## Table of contents
 
+- [`wandb.ai`](#`wandb.ai`)
 - [Objective](#objective)
   - [Past work](#past-work)
   - [Current work](#current-work)
@@ -9,6 +10,12 @@
 - [Usefulness of files](#usefulness-of-files)
   - [Tree of the directory](#tree-of-the-directory)
   - [Usefulness of folders](#usefulness-of-folders)
+
+## `wandb.ai`
+
+To store any important object created in this work, I have been using `wandb.ai`. My repository can be found [here](https://wandb.ai/matiasetcheverry/microstructure-reconstruction?workspace=user-matiasetcheverry).
+
+`wandb.ai` allowed me to store model graphs, code, training checkpoints, images and datasets. It also allows live visualization of any training and its progress. It is very usefull, so we can let any training work and see the live plot of its loss function and any other metrics. As I stored the trainings itself (containing the weights of the model and optimizer), I can retrieve any past training and continue it or analyse it effectively on my computer.
 
 ## Objective
 
