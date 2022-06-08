@@ -1,5 +1,15 @@
 # Microstructure reconstruction
 
+## Table of contents
+
+- [Objective](#objective)
+  - [Past work](#past-work)
+  - [Current work](#current-work)
+- [Github Usage](#github-usage)
+- [Usefulness of files](#usefulness-of-files)
+  - [Tree of the directory](#tree-of-the-directory)
+  - [Usefulness of folders](#usefulness-of-folders)
+
 ## Objective
 
 The objective of this repository is to determine a relationship between slices of images in a microstructure and its descriptors. In this work, the microstructure is a cube composed of aggregates and cement.
@@ -10,10 +20,10 @@ The objective of this repository is to determine a relationship between slices o
 
 Our work is done step by step:
 
-* create random microstructures, store them as `.stl` files.
-* use MATLAB to compute the exact descriptors on these microstructures and extract slices
-* create datasets containing the sliced images in different format. This dataset can be found on my `wandb.ai` [repository](https://wandb.ai/matiasetcheverry/microstructure-reconstruction?workspace=user-matiasetcheverry)
-* determine the descriptors of unseen data through deep learning. I have been using Kaggle to access GPU.
+- create random microstructures, store them as `.stl` files.
+- use MATLAB to compute the exact descriptors on these microstructures and extract slices
+- create datasets containing the sliced images in different format. This dataset can be found on my `wandb.ai` [repository](https://wandb.ai/matiasetcheverry/microstructure-reconstruction?workspace=user-matiasetcheverry)
+- determine the descriptors of unseen data through deep learning. I have been using Kaggle to access GPU.
 
 The work we did on determining the descriptors of a microstructure based on a certain number of sliced images was good.
 
@@ -31,16 +41,16 @@ For now, this work hasn't shown good results.
 
 Here are a few links to use github, with the terminal:
 
-* <https://gitimmersion.com/index.html>
-* <http://up1.github.io/git-guide/index.html>
+- <https://gitimmersion.com/index.html>
+- <http://up1.github.io/git-guide/index.html>
 
 But you may also use github with the desktop application:
 
-* <https://www.softwaretestinghelp.com/github-desktop-tutorial/>
+- <https://www.softwaretestinghelp.com/github-desktop-tutorial/>
 
 You may also need to set up a SSH connection to github. Basically, a SSH is a secure protocol that allows you to connect to private repository:
 
-* <https://jdblischak.github.io/2014-09-18-chicago/novice/git/05-sshkeys.html>
+- <https://jdblischak.github.io/2014-09-18-chicago/novice/git/05-sshkeys.html>
 
 ## Usefulness of files
 
