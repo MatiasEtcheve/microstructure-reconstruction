@@ -92,18 +92,7 @@ This module tests if points are inside of triangulated volume. This module allow
 
 See <https://fr.mathworks.com/matlabcentral/fileexchange/48041-in_polyhedron> for more information.
 
-### Usefulness of files
-
-Here are the usefulness of every folder / files
-
-| folder / file | Usefulness |
-|---|---|
-| rev.m | .m file containing the `rev` class. This class allows to compute the fabrics of each grain contained in the rev and take slice images. |
-| grain.m | .m file containing the `grain` class. This class allows to compute the fabrics of a single grain. |
-| fabrics.mlx | notebook computing the fabrics of the REVs |
-| meshes.mlx | notebook computing the meshes of the REVs |
-
-### Usage
+## Usage
 
 If you want to run the script, you can run `fabrics.mlx` or `meshes.mlx`.
 
@@ -115,3 +104,14 @@ If you want to run the script, you can run `fabrics.mlx` or `meshes.mlx`.
 > - `obj.take_slice_images`
 >
 > with the argument `save=true` will save and OVERWRITE any images contained in the folder `MATLAB/saved_images` with the same name.
+
+### Usefulness of files
+
+Here are the usefulness of every folder / files
+
+| folder / file | Usefulness |
+|---|---|
+| rev.m | .m file containing the `rev` class. This class allows to compute the fabrics of each grain contained in the rev and take slice images. |
+| grain.m | .m file containing the `grain` class. This class allows to compute the fabrics of a single grain. |
+| fabrics.mlx | notebook computing the fabrics of the REVs |
+| meshes.mlx | notebook computing the meshes of the REVs |
