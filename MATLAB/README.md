@@ -7,14 +7,15 @@ Here is what a REV looks like, opened in MATLAB:
 
 ## Table of Contents
 
+- [Table of Contents](#table-of-contents)
 - [Descriptors](#descriptors)
 - [Sliced images](#sliced-images)
 - [Meshes](#meshes)
 - [Installation](#installation)
   - [MATLAB Toolbox](#matlab-toolbox)
   - [`in_polyhedron` module](#-in-polyhedron--module)
+- [Usage](#usage)
   - [Usefulness of files](#usefulness-of-files)
-  - [Usage](#usage)
 
 ## Descriptors
 
