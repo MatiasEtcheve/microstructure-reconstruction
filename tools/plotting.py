@@ -12,98 +12,12 @@ from sklearn.metrics import mean_absolute_percentage_error
 READABLE_NAMES = {}
 
 
-def plot_hist(
-    data: List[Union[pd.DataFrame, np.ndarray]],
-    nb_hist_per_line: int = 2,
-    columns: Optional[List[str]] = None,
-    labels: Optional[List[str]] = ["targets", "predictions"],
-) -> Tuple[Figure, Axes]:
-    """Plots histograms of `data`
-
-    Example::
-        targets = pd.DataFrame(...,
-            columns=["feature_A", "feature_B", "feature_C"],
-            index=["observation_1", "observation_2", "observation_3"]
-        )
-        predictions = pd.DataFrame(...,
-            columns=["feature_A", "feature_B", "feature_C"],
-            index=["observation_1", "observation_2", "observation_3"]
-        )
-        fig, axs = plot_hist([targets, predictions], nb_hist_per_line=3)
-
-    Args:
-        data (List[Union[pd.DataFrame, np.ndarray]]): List of data to plot.
-            This data can be a `pd.DataFrame`, where each column will be a feature, and a row is an observation.
-            This data can be a `np.ndarray`, where each column will a feature, and a row will be an observation.
-            Each `pd.DataFrame` / `np.ndarray` in the list must have the same  shape, with the same columns names.
-            The plot of each `pd.DataFrame` / `np.ndarray` will be overlapped.
-        nb_hist_per_line (int, optional): Number of histograms to plot per row. Defaults to 2.
-        columns (Optional[List[str]], optional): Feature's names.
-            If `columns` is `None` and at least one array in `data` is a `pd.DataFrame`, the column names will be inferred from this array.
-            If `columns` is not `None`, it must be a list of size the number of features in each array in `data`.
-            Defaults to None.
-        labels (Optional[List[str]], optional): Labels of each in array in `data\. Defaults to ["targets", "predictions"].
-
-    Returns:
-        Tuple[Figure, Axes]: figure and axes containing the plots
-    """
-
-    if isinstance(data, pd.DataFrame):
-        if columns is None:
-            columns = data.columns
-        data = [data.copy().to_numpy()]
-
-    if isinstance(data, list):
-        for index, d in enumerate(data):
-            if isinstance(d, pd.DataFrame):
-                if columns is None:
-                    columns = d.columns
-                data[index] = d.copy().to_numpy()
-
-    nb_features = data[0].shape[1]
-    height = int(math.ceil(nb_features / nb_hist_per_line))
-    fig, axs = plt.subplots(
-        height,
-        nb_hist_per_line,
-        figsize=(
-            6 * nb_hist_per_line,
-            6 * height,
-        ),
-    )
-    if len(data) < 10:
-        colors = ["orange", "blue", "magenta", "green", "cyan", "pink"]
-    else:
-        colors = np.random.rand(len(data), 3)
-    for i in range(nb_features):
-        for index, d in enumerate(data):
-            sns.histplot(
-                data=d[:, i],
-                ax=axs[i // nb_hist_per_line, i % nb_hist_per_line],
-                label=labels[index],
-                color=colors[index],
-            )
-
-            axs[i // nb_hist_per_line, i % nb_hist_per_line].legend()
-        if columns is not None:
-            axs[i // nb_hist_per_line, i % nb_hist_per_line].set_title(
-                f"Histogram of {columns[i]}"
-            )
-
-    for row in axs:
-        for ax in row:
-            if not ax.collections:
-                ax.set_visible(False)
-            index += 1
-
-    return fig, axs
-
-
-def plot_overlapping_kde(
+def plot_overlapping_hist(
     data: List[Union[pd.DataFrame, np.ndarray]],
     nb_hist_per_line: int = 2,
     column_mapping: Dict = {},
     labels: Optional[List[str]] = ["targets", "predictions"],
-    ax=None,
+    ax: Optional[Axes] = None,
 ) -> Tuple[Figure, Axes]:
     """Plots kernel density estimations of `data`
 
@@ -119,20 +33,87 @@ def plot_overlapping_kde(
         fig, axs = plot_kde([targets, predictions], nb_hist_per_line=3)
 
     Args:
-        data (List[Union[pd.DataFrame, np.ndarray]]): List of data to plot.
-            This data can be a `pd.DataFrame`, where each column will be a feature, and a row is an observation.
-            This data can be a `np.ndarray`, where each column will a feature, and a row will be an observation.
-            Each `pd.DataFrame` / `np.ndarray` in the list must have the same  shape, with the same columns names.
-            The plot of each `pd.DataFrame` / `np.ndarray` will be overlapped.
+        data (List[pd.DataFrame]): List of DataFrames to plot to plot.
+            Each DataFrame in the list must have the same  shape, with the same columns names.
+            Each column will be a feature, and a row is an observation
+            The plot of each DataFrame will be overlapped.
         nb_hist_per_line (int, optional): Number of histograms to plot per row. Defaults to 2.
-        columns (Optional[List[str]], optional): Feature's names.
-            If `columns` is `None` and at least one array in `data` is a `pd.DataFrame`, the column names will be inferred from this array.
-            If `columns` is not `None`, it must be a list of size the number of features in each array in `data`.
-            Defaults to None.
-        labels (Optional[List[str]], optional): Labels of each in array in `data\. Defaults to ["targets", "predictions"].
+        column_mapping (Dict, optional): Mapping between column names in the Dataframe and
+            column names to display in the plot. Defaults to {}.
+        ax (Axes, optional): Ax which will contain the plot. If None, the ax is created. Defaults to None.
+        labels (Optional[List[str]], optional): Labels of each in array in `data`. Defaults to ["targets", "predictions"].
 
     Returns:
-        Tuple[Figure, Axes]: figure and axes containing the plots
+        Axes: ax containing the plots
+    """
+
+    features = data[0].columns
+    height = int(math.ceil(len(features) / nb_hist_per_line))
+    if ax is None:
+        fig, ax = plt.subplots(
+            height,
+            nb_hist_per_line,
+            figsize=(
+                6 * nb_hist_per_line,
+                6 * height,
+            ),
+        )
+
+    if len(data) < 10:
+        colors = ["orange", "blue", "magenta", "green", "cyan", "pink"]
+    else:
+        colors = np.random.rand(len(data), 3)
+
+    for i, feature in enumerate(list(features)):
+        for index, d in enumerate(data):
+            sns.histplot(
+                data=d.to_numpy()[:, i],
+                ax=ax[i // nb_hist_per_line, i % nb_hist_per_line],
+                label=labels[index],
+                color=colors[index],
+            )
+
+            ax[i // nb_hist_per_line, i % nb_hist_per_line].legend()
+            ax[i // nb_hist_per_line, i % nb_hist_per_line].set_title(
+                f"Histogram of {column_mapping.get(feature, feature)}"
+            )
+            ax[i // nb_hist_per_line, i % nb_hist_per_line].set_visible(True)
+    return ax
+
+
+def plot_overlapping_kde(
+    data: List[Union[pd.DataFrame, np.ndarray]],
+    nb_hist_per_line: int = 2,
+    column_mapping: Dict = {},
+    labels: Optional[List[str]] = ["targets", "predictions"],
+    ax: Optional[Axes] = None,
+) -> Tuple[Figure, Axes]:
+    """Plots kernel density estimations of `data`
+
+    Example::
+        targets = pd.DataFrame(...,
+            columns=["feature_A", "feature_B", "feature_C"],
+            index=["observation_1", "observation_2", "observation_3"]
+        )
+        predictions = pd.DataFrame(...,
+            columns=["feature_A", "feature_B", "feature_C"],
+            index=["observation_1", "observation_2", "observation_3"]
+        )
+        fig, axs = plot_kde([targets, predictions], nb_hist_per_line=3)
+
+    Args:
+        data (List[pd.DataFrame]): List of DataFrames to plot to plot.
+            Each DataFrame in the list must have the same  shape, with the same columns names.
+            Each column will be a feature, and a row is an observation
+            The plot of each DataFrame will be overlapped.
+        nb_hist_per_line (int, optional): Number of histograms to plot per row. Defaults to 2.
+        column_mapping (Dict, optional): Mapping between column names in the Dataframe and
+            column names to display in the plot. Defaults to {}.
+        ax (Axes, optional): Ax which will contain the plot. If None, the ax is created. Defaults to None.
+        labels (Optional[List[str]], optional): Labels of each in array in `data`. Defaults to ["targets", "predictions"].
+
+    Returns:
+        Axes: ax containing the plots
     """
     features = data[0].columns
     height = int(math.ceil(len(features) / nb_hist_per_line))
@@ -164,36 +145,80 @@ def plot_overlapping_kde(
             if not ax.collections:
                 ax.set_visible(False)
             index += 1
-
     return ax
 
 
 def plot_kde(
     targets: pd.DataFrame,
     predictions: pd.DataFrame,
-    column_mapping: Dict = {},
-    ax=None,
-    nb_hist_per_line=6,
-) -> Tuple[Figure, Axes]:
+    column_mapping: Dict[str, str] = {},
+    nb_hist_per_line: Optional[int] = 6,
+    ax: Optional[Axes] = None,
+) -> Axes:
+    """Plots the overlapping kernel density estimations of the `targets` and `predictions` DataFrames.
+
+    Args:
+        targets (pd.DataFrame): target DataFrame where the columns are the features and the rows are the observations.
+        predictions (pd.DataFrame): predictions DataFrame where the columns are the features and the rows are the observations.
+        column_mapping (Dict, optional): Mapping between column names in the Dataframe and
+            column names to display in the plot. Defaults to {}.
+        nb_hist_per_line (int, optional): number of histograms to display per row. Defaults to 6.
+        ax (Axes, optional): Ax which will contain the plot. If None, the ax is created. Defaults to None.
+
+    Returns:
+        Axes: ax containing the plots
+    """
     return plot_overlapping_kde(
         data=[targets, predictions],
         column_mapping=column_mapping,
         labels=["targets", "predictions"],
-        ax=ax,
         nb_hist_per_line=nb_hist_per_line,
+        ax=ax,
+    )
+
+
+def plot_hist(
+    targets: pd.DataFrame,
+    predictions: pd.DataFrame,
+    column_mapping: Dict[str, str] = {},
+    nb_hist_per_line: Optional[int] = 6,
+    ax: Optional[Axes] = None,
+) -> Axes:
+    """Plots the overlapping kernel density estimations of the `targets` and `predictions` DataFrames.
+
+    Args:
+        targets (pd.DataFrame): target DataFrame where the columns are the features and the rows are the observations.
+        predictions (pd.DataFrame): predictions DataFrame where the columns are the features and the rows are the observations.
+        column_mapping (Dict, optional): Mapping between column names in the Dataframe and
+            column names to display in the plot. Defaults to {}.
+        nb_hist_per_line (int, optional): number of histograms to display per row. Defaults to 6.
+        ax (Axes, optional): Ax which will contain the plot. If None, the ax is created. Defaults to None.
+
+    Returns:
+        Axes: ax containing the plots
+    """
+    return plot_overlapping_hist(
+        data=[targets, predictions],
+        column_mapping=column_mapping,
+        labels=["targets", "predictions"],
+        nb_hist_per_line=nb_hist_per_line,
+        ax=ax,
     )
 
 
 def plot_correlation(
-    df: pd.DataFrame, column_mapping: Dict = {}, ax=None
-) -> Tuple[Figure, Axes]:
-    """Plots the correlation between all the features in a dataframe.
+    df: pd.DataFrame, column_mapping: Dict = {}, ax: Axes = None
+) -> Axes:
+    """Plots the correlation between all the features in a DataFrame.
 
     Args:
-        df (pd.DataFrame): dataframe where the columns are the features and the rows are the observations.
+        df (pd.DataFrame): DataFrame where the columns are the features and the rows are the observations.
+        column_mapping (Dict, optional): Mapping between column names in the Dataframe and
+            column names to display in the plot. Defaults to {}.
+        ax (Axes, optional): Ax which will contain the plot. If None, the ax is created. Defaults to None.
 
     Returns:
-        Tuple[Figure, Axes]: figure and axes containing the plots
+        Axes: ax containing the plots
     """
     if ax is None:
         fig, ax = plt.subplots(figsize=(10, 10))
@@ -220,7 +245,25 @@ def plot_correlation(
     return ax
 
 
-def plot_horizontal_bars(targets, predictions, column_mapping, ax=None):
+def plot_horizontal_bars(
+    targets: pd.DataFrame,
+    predictions: pd.DataFrame,
+    column_mapping: Dict[str, str],
+    ax: Axes = None,
+) -> Axes:
+    """Plots the MAE with MAPE annotations.
+
+    Args:
+        targets (pd.DataFrame): target DataFrame where the columns are the features and the rows are the observations.
+        predictions (pd.DataFrame): predictions DataFrame where the columns are the features and the rows are the observations.
+        column_mapping (Dict, optional): Mapping between column names in the Dataframe and
+            column names to display in the plot. Defaults to {}.
+        ax (Axes, optional): Ax which will contain the plot. If None, the ax is created. Defaults to None.
+
+    Returns:
+        Axes: ax containing the plots
+    """
+
     def show_values_on_bars(axs, values):
         def _show_on_single_plot(ax):
             i = 0
