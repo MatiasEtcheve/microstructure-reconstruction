@@ -5,6 +5,7 @@ pandas
 torchvision
 Pillow
 scikit-learn
+scipy
 seaborn
 pytorch-lightning
 torchmetrics

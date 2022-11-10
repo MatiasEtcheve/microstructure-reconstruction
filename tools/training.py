@@ -136,7 +136,7 @@ def compute_metrics(
     }
 
 
-def metrics_str(
+def display_metrics(
     predictions: Union[torch.Tensor, np.ndarray],
     targets: Union[torch.Tensor, np.ndarray],
 ) -> str:
